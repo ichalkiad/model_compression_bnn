@@ -21,6 +21,7 @@ class TournamentOptimizer:
                 
                 init_fn: initialize a model
                 mutate_fn: mutate function - mutates a model
+                eval_fn: evaluate function - evaluates the fitness of a model
                 nb_workers: number of workers
         """
         

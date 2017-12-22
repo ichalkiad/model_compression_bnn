@@ -3,6 +3,7 @@ import cv2
 import numpy as np
 import os
 import net_builder
+import WallNavDataset
 
 # helper class for scheduling workers
 class Scheduler:
@@ -59,6 +60,7 @@ class CustomWorker(Process):
 
         batch_size = 64
         # setup our dataloaders
+        """
         self.train_loader = utils.data.DataLoader(
             datasets.MNIST('./data', train=True, download=False,
                         transform=transforms.Compose([
@@ -73,6 +75,10 @@ class CustomWorker(Process):
                 transforms.Normalize((0.1307,), (0.3081,))
             ])),
             batch_size=batch_size, shuffle=True)
+        """
+
+        self.train_loader = utils.data.DataLoader(WallNavDataset.WallNavDataset(root_dir='../data/Wall', train=True),batch_size=batch_size, shuffle=True)    
+        self.test_loader = utils.data.DataLoader(WallNavDataset.WallNavDataset(root_dir='../data/Wall', train=False),batch_size=batch_size, shuffle=True)
 
 
     def run(self):

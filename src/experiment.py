@@ -4,7 +4,7 @@ import net_builder
 import gp
 import cPickle
 # Use cuda ?
-CUDA_ = True
+CUDA_ = False
 
 if __name__=='__main__':
     # setup a tournament!
@@ -15,7 +15,7 @@ if __name__=='__main__':
             init_fn=net_builder.randomize_network,
             mutate_fn=net_builder.mutate_net,
             nb_workers=3,
-            use_cuda=True)
+            use_cuda=False)
 
     for i in range(nb_evolution_steps):
         print('\nEvolution step:{}'.format(i))

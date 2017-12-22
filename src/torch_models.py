@@ -26,7 +26,7 @@ class CustomModel():
 
     def __init__(self, build_info, CUDA=True):
 
-        previous_units = 28 * 28
+        previous_units = 4
         self.model = nn.Sequential()
         self.model.add_module('flatten', Flatten())
         for i, layer_info in enumerate(build_info['layers']):
@@ -63,7 +63,7 @@ class CustomModel():
 
         self.model.add_module(
             'classification_layer',
-            nn.Linear(previous_units, 10)
+            nn.Linear(previous_units, 4)
             )
         self.model.add_module('sofmax', nn.LogSoftmax())
         self.model.cpu()
@@ -100,6 +100,8 @@ class CustomModel():
 
         batch = 0
         for batch_idx, (data, target) in enumerate(train_loader):
+            data = data.type('torch.FloatTensor')
+            target = target.type('torch.LongTensor')
             if self.cuda:
                 data, target = data.cuda(), target.cuda()
             data, target = Variable(data), Variable(target)
@@ -129,6 +131,8 @@ class CustomModel():
         test_loss = 0
         correct = 0
         for data, target in test_loader:
+            data = data.type('torch.FloatTensor')
+            target = target.type('torch.LongTensor')
             if self.cuda:
                 data, target = data.cuda(), target.cuda()
             data, target = Variable(data, volatile=True), Variable(target)

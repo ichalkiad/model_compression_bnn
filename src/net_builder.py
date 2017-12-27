@@ -8,15 +8,15 @@ import numpy as np
 # Layer space & net space define the way a model is built and mutated.
 
 LAYER_SPACE = dict()
-LAYER_SPACE['nb_units'] = (128, 1024, 'int', 0.2)
+LAYER_SPACE['nb_units'] = (6, 512, 'int', 0.2)
 LAYER_SPACE['dropout_rate'] = (0.0, 0.7, 'float', 0.2)
 LAYER_SPACE['activation'] =\
     (0,  ['linear', 'tanh', 'relu', 'sigmoid', 'elu'], 'list', 0.2)
 
 
 NET_SPACE = dict()
-NET_SPACE['nb_layers'] = (1, 4, 'int', 0.1)
-NET_SPACE['lr'] = (0.0005, 0.2, 'float', 0.2)
+NET_SPACE['nb_layers'] = (1, 3, 'int', 0.1)
+NET_SPACE['lr'] = (0.005, 0.2, 'float', 0.2)
 NET_SPACE['weight_decay'] = (0.00005, 0.002, 'float', 0.2)
 NET_SPACE['optimizer'] =\
     (0, ['sgd', 'adam', 'adadelta', 'rmsprop'], 'list', 0.2)

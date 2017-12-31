@@ -11,6 +11,8 @@ from torchvision import datasets, transforms
 import numpy as np
 
 
+
+
 class Flatten(nn.Module):
     """A simple flatten module."""
 
@@ -61,11 +63,11 @@ class CustomModel():
                 )
             previous_units = layer_info['nb_units']['val']
 
-        self.model.add_module(
-            'classification_layer',
-            nn.Linear(previous_units, 4)
-            )
-        self.model.add_module('sofmax', nn.LogSoftmax())
+        classify_layer = nn.Linear(previous_units, 4)
+        self.model.add_module('classification_layer',classify_layer)
+
+        self.model.add_module('sofmax', nn.LogSoftmax(dim=-1))
+
         self.model.cpu()
         
         if build_info['optimizer']['val'] == 'adam':
@@ -135,7 +137,9 @@ class CustomModel():
             target = target.type('torch.LongTensor')
             if self.cuda:
                 data, target = data.cuda(), target.cuda()
-            data, target = Variable(data, volatile=True), Variable(target)
+            with torch.no_grad():
+                 data = Variable(data)
+            target = Variable(target)
             output = self.model(data)
             test_loss += F.nll_loss(output, target).data[0]
             # get the index of the max log-probability

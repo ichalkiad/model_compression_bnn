@@ -14,12 +14,13 @@ class WallNavDataset(data.Dataset):
                 on a sample.
         """
         self.train = train
+        self.features_no = 3
 
         if self.train:
-            self.torch_file = 'train_data_4sensors.pt'
+            self.torch_file = 'train_data_2sensors.pt'
             self.train_data = load(os.path.join(root_dir, self.torch_file),map_location)
         else:
-            self.torch_file = 'test_data_4sensors.pt'
+            self.torch_file = 'test_data_2sensors.pt'
             self.test_data = load(os.path.join(root_dir, self.torch_file),map_location)
 
         self.root_dir = root_dir
@@ -37,8 +38,8 @@ class WallNavDataset(data.Dataset):
     def __getitem__(self, index):
 
         if self.train:
-            features, target = self.train_data[index,0:4], self.train_data[index,4]
+            features, target = self.train_data[index,0:self.features_no], self.train_data[index,self.features_no]
         else:
-            features, target = self.test_data[index,0:4], self.test_data[index,4]
+            features, target = self.test_data[index,0:self.features_no], self.test_data[index,self.features_no]
 
         return features,target

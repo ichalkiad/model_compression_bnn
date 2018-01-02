@@ -9,7 +9,7 @@ import numpy as np
 
 LAYER_SPACE = dict()
 LAYER_SPACE['nb_units'] = (6, 128, 'int', 0.2)
-LAYER_SPACE['dropout_rate'] = (0.0, 0.7, 'float', 0.2)
+LAYER_SPACE['dropout_rate'] = (0.0, 0.0, 'float', 0.2) #0.7
 LAYER_SPACE['activation'] =\
     (0,  ['linear', 'tanh', 'relu', 'sigmoid', 'elu'], 'list', 0.2)
 

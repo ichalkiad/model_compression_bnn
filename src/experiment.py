@@ -13,7 +13,7 @@ if __name__=='__main__':
     nb_evolution_steps = 300
     tournament = \
         gp.TournamentOptimizer(
-            population_sz=250,
+            population_sz=100,
             init_fn=net_builder.randomize_network,
             mutate_fn=net_builder.mutate_net,
             nb_workers=20,
@@ -26,7 +26,7 @@ if __name__=='__main__':
         # keep track of the experiment results & corresponding architectures
         
         name = "tourney_{}".format(i)
-        directory = "./tournament_results/pop250/"
+        directory = "./tournament_results/pop100_nodrop/"
         if not os.path.exists(directory):
            os.makedirs(directory)
         cPickle.dump(tournament.stats, open(directory + name + '.stats','wb'))

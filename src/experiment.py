@@ -10,7 +10,7 @@ CUDA_ = True
 
 if __name__=='__main__':
     # setup a tournament!
-    nb_evolution_steps = 300
+    nb_evolution_steps = 150
     tournament = \
         gp.TournamentOptimizer(
             population_sz=100,
@@ -26,7 +26,7 @@ if __name__=='__main__':
         # keep track of the experiment results & corresponding architectures
         
         name = "tourney_{}".format(i)
-        directory = "./tournament_results/pop100_nodrop/"
+        directory = "./tournament_results/pop100_nodrop_2sensors/"
         if not os.path.exists(directory):
            os.makedirs(directory)
         cPickle.dump(tournament.stats, open(directory + name + '.stats','wb'))

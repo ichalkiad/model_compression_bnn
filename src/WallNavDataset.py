@@ -14,7 +14,7 @@ class WallNavDataset(data.Dataset):
                 on a sample.
         """
         self.train = train
-        self.features_no = 3
+        self.features_no = 2
 
         if self.train:
             self.torch_file = 'train_data_2sensors.pt'

@@ -28,7 +28,7 @@ class CustomModel():
 
     def __init__(self, build_info, CUDA=True):
 
-        previous_units = 4
+        previous_units = 2
         self.model = nn.Sequential()
         self.model.add_module('flatten', Flatten())
         for i, layer_info in enumerate(build_info['layers']):

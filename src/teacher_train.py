@@ -96,9 +96,9 @@ if CUDA_:
 
 #Training criterion and strategy
 criterion = nn.NLLLoss()
-optimizer = optim.RMSprop(model.parameters(), lr=0.15780361145952498, weight_decay=0.0014838531317796044)
+optimizer = optim.RMSprop(model.parameters(), lr=0.05)
 
-for epoch in range(1):  # loop over the dataset multiple times
+for epoch in range(500):  # loop over the dataset multiple times
     train(model, CUDA_, train_loader, optimizer, criterion)
     
 print('\nAccuracy:{}'.format(test(model, test_loader, criterion, CUDA_)))

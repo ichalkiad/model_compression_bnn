@@ -1,7 +1,4 @@
-# evo-design
-Code for my blog post "Design by Evolution"
+Model compression (Ba,Caruana 2014) using Bayesian Neural Networks (Blundell et. al. 2015).
 
-Make sure you have PyTorch installed.
+Initial repo with evolutionary design search : "Design by Evolution", https://github.com/offbit/evo-design
 
-Run:
-python experiment.py

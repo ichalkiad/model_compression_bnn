@@ -8,7 +8,7 @@
 #module purge 
 module load easybuild
 module unload gcc/6.3.0
-module load gcc/5.4.0
+module load compiler/GCC/5.4.0-2.26
 module load vis/OpenCV/3.1.0-foss-2016b
 module load cuda90/toolkit/9.0.176
 module load cudnn/7.0
@@ -17,6 +17,6 @@ module load devel/CMake/3.5.2-foss-2016b
 #CUDA_VISIBLE_DEVICES=0
 
 #execute application
-python /home/icha/compress_bnn/src/bnn_student_train.py --cuda -n 1000000 -b 64
+python /home/icha/compress_bnn/src/bnn_student_train.py --cuda -n 3000 -b 64
 # exit
 exit 0

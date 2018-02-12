@@ -28,7 +28,7 @@ class CustomModel():
 
     def __init__(self, build_info, CUDA=True):
 
-        previous_units = 2
+        previous_units = 24
         self.model = nn.Sequential()
         self.model.add_module('flatten', Flatten())
         for i, layer_info in enumerate(build_info['layers']):
@@ -65,7 +65,8 @@ class CustomModel():
 
         classify_layer = nn.Linear(previous_units, 4)
         self.model.add_module('classification_layer',classify_layer)
-
+        
+        #CURRENTLY LOGITS, comment out below line for normal classification - NOT
         self.model.add_module('sofmax', nn.LogSoftmax(dim=-1))
 
         self.model.cpu()
@@ -103,12 +104,16 @@ class CustomModel():
         batch = 0
         for batch_idx, (data, target) in enumerate(train_loader):
             data = data.type('torch.FloatTensor')
+            #COMMENT OUT FOR LOGITS - NOT
+            #target = target.type('torch.FloatTensor')
             target = target.type('torch.LongTensor')
             if self.cuda:
                 data, target = data.cuda(), target.cuda()
             data, target = Variable(data), Variable(target)
             self.optimizer.zero_grad()
             output = self.model(data)
+            #COMMENT OUT FOR LOGITS - NON
+            #loss = F.mse_loss(output, target)
             loss = F.nll_loss(output, target)
             # print(type(loss))
             np_loss = loss.cpu().data.numpy()
@@ -134,6 +139,8 @@ class CustomModel():
         correct = 0
         for data, target in test_loader:
             data = data.type('torch.FloatTensor')
+            #COMMENT OUT FOR LOGITS - NOT
+            #target = target.type('torch.FloatTensor')
             target = target.type('torch.LongTensor')
             if self.cuda:
                 data, target = data.cuda(), target.cuda()
@@ -141,12 +148,17 @@ class CustomModel():
                  data = Variable(data)
             target = Variable(target)
             output = self.model(data)
+            #COMMENT OUT FOR LOGITS - NOT
+            #test_loss = F.mse_loss(output, target).data[0]
             test_loss += F.nll_loss(output, target).data[0]
             # get the index of the max log-probability
+            #COMMENT BELOW 2 LINES FOR LOGITS
+
             pred = output.data.max(1)[1]
             correct += pred.eq(target.data).cpu().sum()
+            #test_loss /= len(data)
 
         test_loss /= len(test_loader)
         accuarcy = 100. * correct / len(test_loader.dataset)
-        return accuarcy
+        return accuarcy #test_loss
     

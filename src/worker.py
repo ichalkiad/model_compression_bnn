@@ -77,8 +77,9 @@ class CustomWorker(Process):
             batch_size=batch_size, shuffle=True)
         """
 
-        self.train_loader = utils.data.DataLoader(WallNavDataset.WallNavDataset(root_dir='../data/Wall', train=True),batch_size=batch_size, shuffle=True)    
-        self.test_loader = utils.data.DataLoader(WallNavDataset.WallNavDataset(root_dir='../data/Wall', train=False),batch_size=batch_size, shuffle=True)
+        #CURRENTY LOGITS DATA
+        self.train_loader = utils.data.DataLoader(WallNavDataset.WallNavLogitsDataset(root_dir='../data/Wall', train=True),batch_size=batch_size, shuffle=True)    
+        self.test_loader = utils.data.DataLoader(WallNavDataset.WallNavLogitsDataset(root_dir='../data/Wall', train=False),batch_size=batch_size, shuffle=True)
 
 
     def run(self):

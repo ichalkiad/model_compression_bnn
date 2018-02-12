@@ -8,16 +8,16 @@ import numpy as np
 # Layer space & net space define the way a model is built and mutated.
 
 LAYER_SPACE = dict()
-LAYER_SPACE['nb_units'] = (6, 10, 'int', 0.2)
+LAYER_SPACE['nb_units'] = (500, 20000, 'int', 0.4)
 LAYER_SPACE['dropout_rate'] = (0.0, 0.0, 'float', 0.2) #0.7
 LAYER_SPACE['activation'] = (0,  ['linear', 'sigmoid'], 'list', 0.2) #['linear', 'tanh', 'relu', 'sigmoid', 'elu']
 
 NET_SPACE = dict()
-NET_SPACE['nb_layers'] = (1, 3, 'int', 0.1)
-NET_SPACE['lr'] = (0.05, 0.2, 'float', 0.2)
+NET_SPACE['nb_layers'] = (1, 1, 'int', 0.1)
+NET_SPACE['lr'] = (0.001, 0.1, 'float', 0.2)
 NET_SPACE['weight_decay'] = (0.0, 0.0, 'float', 0.2)
 NET_SPACE['optimizer'] =\
-    (0, ['sgd', 'adam', 'adadelta', 'rmsprop'], 'list', 0.2)
+    (0, ['sgd', 'adam'], 'list', 0.2)
 
 def check_and_assign(val, space):
     """assign a value between the boundaries."""

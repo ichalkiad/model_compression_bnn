@@ -34,11 +34,12 @@ def train(model, CUDA_, train_loader, optimizer, criterion):
                 print('Qutting, loss too high', np_loss)
                 return -1
             #else:
-            #    print(np_loss)
+            #   print(np_loss)
 
             loss.backward()
             optimizer.step()
-            
+            return np_loss
+
 
 def test(model, test_loader, criterion, CUDA_):
         """Evaluate a model."""
@@ -73,20 +74,32 @@ test_loader = utils.data.DataLoader(WallNavDataset.WallNavDataset(root_dir='../d
 class Net(nn.Module):
     def __init__(self):
         super(Net, self).__init__()
-        self.input_features = 2
-        self.fc1 = nn.Linear(self.input_features, 6)
-        self.fc2 = nn.Linear(6, 4)
+        self.input_features = 24
+        self.fc1 = nn.Linear(self.input_features, 72)
+        self.fc2 = nn.Linear(72, 107)
+        self.fc3 = nn.Linear(107,108)
+        self.fc4 = nn.Linear(108,124)
+        self.fc5 = nn.Linear(124,4)
+
+
     
     def forward(self, x):
-        x = F.sigmoid(self.fc1(x))
-        x = self.fc2(x)
+        x = self.fc1(x)
+        x = F.sigmoid(self.fc2(x))
+        x = self.fc3(x)
+        x = self.fc4(x)
+        x = self.fc5(x)
         x = F.log_softmax(x,dim=-1)
         
         return x
 
     def get_logits(self,x):
-        x = F.sigmoid(self.fc1(x))
-        x = self.fc2(x)
+        x = self.fc1(x)
+        x = F.sigmoid(self.fc2(x))
+        x = self.fc3(x)
+        x = self.fc4(x)
+        x = self.fc5(x)
+
         return x
 
 
@@ -97,15 +110,17 @@ if CUDA_:
 
 #Training criterion and strategy
 criterion = nn.NLLLoss()
-optimizer = optim.RMSprop(model.parameters(), lr=0.05)
+optimizer = optim.Adagrad(model.parameters(), lr=0.182)
 
-for epoch in range(500):  # loop over the dataset multiple times
+for epoch in range(10000):  # loop over the dataset multiple times
     train(model, CUDA_, train_loader, optimizer, criterion)
 
 print('Finished Training')
 
     
 print('\nAccuracy:{}'.format(test(model, test_loader, criterion, CUDA_)))
+
+
 
 save_data = []
 for data, target in train_loader:
@@ -124,8 +139,8 @@ for data, target in train_loader:
             save_data.append(s)
 
 k = np.concatenate(save_data,axis=0)
-with open('../data/Wall/train_data_2sensors_logits.pt','wb') as f:
-     cPickle.dump(k,f)
+with open('../data/Wall/train_data_24sensors_logits.pt','wb') as f:
+     torch.save(k,f)
 
 save_data = []
 for data, target in test_loader:
@@ -144,5 +159,7 @@ for data, target in test_loader:
             save_data.append(s)
 
 k = np.concatenate(save_data,axis=0)
-with open('../data/Wall/test_data_2sensors_logits.pt','wb') as f:
-     cPickle.dump(k,f)
+with open('../data/Wall/test_data_24sensors_logits.pt','wb') as f:
+     torch.save(k,f)
+
+

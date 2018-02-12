@@ -2,7 +2,7 @@
 
 #SBATCH --partition=amd-longq
 #SBATCH --nodes=1
-#SBATCH -c1
+#SBATCH -c20
 #SBATCH --gres=gpu:1
 
 #module purge 
@@ -12,9 +12,10 @@ module load cuda90/toolkit/9.0.176
 module load cudnn/7.0
 module load devel/CMake/3.5.2-foss-2016b
 
-CUDA_VISIBLE_DEVICES=0
+#CUDA_VISIBLE_DEVICES=0
 
 #execute application
-python /home/icha/compress_bnn/src/bnn_student_train.py --cuda -n 10000
+python /home/icha/compress_bnn/src/experiment.py
+
 # exit
 exit 0

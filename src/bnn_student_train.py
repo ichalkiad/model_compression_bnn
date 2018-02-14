@@ -34,16 +34,14 @@ class RegressionModel(nn.Module):
 
 
 data = []
-with open('../data/Wall/train_data_24sensors.pt','rb') as f:
-     #data1 = cPickle.load(f)
-     #data = Variable(torch.Tensor(data1[:,:]))
+with open('../data/Wall/train_data_24sensors_1hot.pt','rb') as f:
      data = Variable(torch.Tensor(torch.load(f)))
      
 
 N = len(data)  # size of data
 p = 24  # number of features
 hidden_nodes = 2
-output_nodes = 1
+output_nodes = 4
 softplus = nn.Softplus()
 regression_model = RegressionModel(p,hidden_nodes,output_nodes)
 
@@ -92,7 +90,6 @@ def model(data):
         bias_sigma4 = Variable(torch.ones(1, output_nodes))
 
 
-
     w_prior1, b_prior1 = Normal(mu1, sigma1), Normal(bias_mu1, bias_sigma1)
     w_prior2, b_prior2 = Normal(mu2, sigma2), Normal(bias_mu2, bias_sigma2)
     w_prior3, b_prior3 = Normal(mu3, sigma3), Normal(bias_mu3, bias_sigma3)
@@ -106,7 +103,7 @@ def model(data):
 
     with pyro.iarange("map", N, subsample=data):
         x_data = data[:, 0:24]
-        y_data = data[:, 24]
+        y_data = data[:, 24:28]
         # run the regressor forward conditioned on inputs
         prediction_mean = lifted_reg_model(x_data).squeeze()
         pyro.sample("obs",
@@ -185,7 +182,6 @@ def guide(data):
     w_dist3 = Normal(mw_param3, sw_param3)
     b_dist3 = Normal(mb_param3, sb_param3)
 
-
     # register learnable params in the param store
     mw_param4 = pyro.param("guide_mean_weight4", w_mu4)
     sw_param4 = softplus(pyro.param("guide_log_sigma_weight4", w_log_sig4))
@@ -194,7 +190,6 @@ def guide(data):
     # gaussian guide distributions for w and b
     w_dist4 = Normal(mw_param4, sw_param4)
     b_dist4 = Normal(mb_param4, sb_param4)
-
     
 
     dists = {'fc1.weight': w_dist1, 'fc1.bias': b_dist1, 'fc2.weight': w_dist2, 'fc2.bias': b_dist2, 'fc3.weight': w_dist3, 'fc3.bias': b_dist3, 'fc4.weight': w_dist4, 'fc4.bias': b_dist4}
@@ -205,7 +200,7 @@ def guide(data):
 
 
 # instantiate optim and inference objects
-optim = Adam({"lr": 0.05})
+optim = Adam({"lr": 0.01})
 svi = SVI(model, guide, optim, loss="ELBO")
 
 
@@ -233,8 +228,6 @@ def main(args,data):
     #Monitor model graph
     writer.add_graph(regression_model, data[:, 0:24], verbose=False)
 
-    print(regression_model.named_parameters())
-
     for j in range(args.num_epochs):
         if args.batch_size == N:
             # use the entire data set
@@ -261,32 +254,44 @@ def main(args,data):
         writer.add_scalar('data/epoch_loss', epoch_loss, j)
 
 
+
+    # Validate - test model
     print("Validate trained model...")
     test_data = []
-    with open('../data/Wall/test_data_24sensors.pt','rb') as f: 
-         #test_data1 = cPickle.load(f)
-         #test_data = Variable(torch.Tensor(test_data1[:,:]))
+    with open('../data/Wall/test_data_24sensors_1hot.pt','rb') as f: 
          test_data = Variable(torch.Tensor(torch.load(f))) 
 
-
-    loss = nn.MSELoss()
-    x_data, y_data = test_data[0:100,0:24], test_data[0:100,24]
-    y_preds = Variable(torch.zeros(100,1)) #len(test_data), 1))
-
+    #Number of parameter sampling steps
+    n_samples = 200
+    
+    loss = nn.NLLLoss()
+    x_data, y_data = test_data[:,0:24], test_data[:,24:28]
+    
     if args.cuda:
         test_data = test_data.cuda()
         x_data, y_data = x_data.cuda(), y_data.cuda()
-        y_preds = y_preds.cuda()
 
-    for i in range(100): #(len(test_data)):
+    y_preds = [] 
+    probs = []
+    centers = []
+    #Create list of float tensors each containing the evaluation of the test data by a sampled BNN
+    for i in range(n_samples):
     # guide does not require the data
         sampled_reg_model = guide(None)
-        # run the regression model and add prediction to total
-        y_preds = y_preds + sampled_reg_model(x_data)
-        # take the average of the predictions
-    y_preds = y_preds / 100 #len(test_data)
-    
-    print ("Loss: ", loss(y_preds, y_data).data[0])
+        y_preds.append(sampled_reg_model(x_data))
+
+    #Create histograms of sample predictions to form the final posterior predictive distribution
+    for i in y_preds:
+        histogram = np.histogram(i.detach().cpu().numpy(), bins=20)
+        probs.append(histogram[0] / float(n_samples))
+        delta = histogram[1][1] - histogram[1][0]
+        centers.append([np.float32(a + delta / 2) for a in histogram[1][:-1]])
+    with open('PredictionPDF.pt','wb') as f: 
+         torch.save(probs,f)
+    with open('PDFCenters.pt','wb') as f: 
+         torch.save(centers,f)
+
+
    
     writer.close()
 

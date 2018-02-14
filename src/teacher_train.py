@@ -6,6 +6,7 @@ import WallNavDataset
 import torch.utils as utils 
 import numpy as np
 import torch
+import cPickle
 CUDA_ = True
 
 
@@ -33,11 +34,12 @@ def train(model, CUDA_, train_loader, optimizer, criterion):
                 print('Qutting, loss too high', np_loss)
                 return -1
             #else:
-            #    print(np_loss)
+            #   print(np_loss)
 
             loss.backward()
             optimizer.step()
-            
+            return np_loss
+
 
 def test(model, test_loader, criterion, CUDA_):
         """Evaluate a model."""
@@ -72,20 +74,32 @@ test_loader = utils.data.DataLoader(WallNavDataset.WallNavDataset(root_dir='../d
 class Net(nn.Module):
     def __init__(self):
         super(Net, self).__init__()
-        self.input_features = 2
-        self.fc1 = nn.Linear(self.input_features, 6)
-        self.fc2 = nn.Linear(6, 4)
+        self.input_features = 24
+        self.fc1 = nn.Linear(self.input_features, 72)
+        self.fc2 = nn.Linear(72, 107)
+        self.fc3 = nn.Linear(107,108)
+        self.fc4 = nn.Linear(108,124)
+        self.fc5 = nn.Linear(124,4)
+
+
     
     def forward(self, x):
         x = self.fc1(x)
-        x = self.fc2(x)
+        x = F.sigmoid(self.fc2(x))
+        x = self.fc3(x)
+        x = self.fc4(x)
+        x = self.fc5(x)
         x = F.log_softmax(x,dim=-1)
         
         return x
 
     def get_logits(self,x):
         x = self.fc1(x)
-        x = self.fc2(x)
+        x = F.sigmoid(self.fc2(x))
+        x = self.fc3(x)
+        x = self.fc4(x)
+        x = self.fc5(x)
+
         return x
 
 
@@ -96,11 +110,56 @@ if CUDA_:
 
 #Training criterion and strategy
 criterion = nn.NLLLoss()
-optimizer = optim.RMSprop(model.parameters(), lr=0.15780361145952498, weight_decay=0.0014838531317796044)
+optimizer = optim.Adagrad(model.parameters(), lr=0.182)
 
-for epoch in range(1):  # loop over the dataset multiple times
+for epoch in range(10000):  # loop over the dataset multiple times
     train(model, CUDA_, train_loader, optimizer, criterion)
+
+print('Finished Training')
+
     
 print('\nAccuracy:{}'.format(test(model, test_loader, criterion, CUDA_)))
 
-print('Finished Training')
+
+
+save_data = []
+for data, target in train_loader:
+            data = data.type('torch.FloatTensor')
+            target = target.type('torch.LongTensor')
+            if CUDA_:
+                data, target = data.cuda(), target.cuda()
+            with torch.no_grad():
+                data = Variable(data)
+            target = Variable(target)
+            output = model.get_logits(data)
+            d = (data.data).cpu().numpy()
+            o = (output.data).cpu().numpy()
+            t = (target.data).cpu().numpy()
+            s = np.concatenate((d,o,np.reshape(t,(len(t),1))),axis=1)            
+            save_data.append(s)
+
+k = np.concatenate(save_data,axis=0)
+with open('../data/Wall/train_data_24sensors_logits.pt','wb') as f:
+     torch.save(k,f)
+
+save_data = []
+for data, target in test_loader:
+            data = data.type('torch.FloatTensor')
+            target = target.type('torch.LongTensor')
+            if CUDA_:
+                data, target = data.cuda(), target.cuda()
+            with torch.no_grad():
+                data = Variable(data)
+            target = Variable(target)
+            output = model.get_logits(data)
+            d = (data.data).cpu().numpy()
+            o = (output.data).cpu().numpy()
+            t = (target.data).cpu().numpy()
+            s = np.concatenate((d,o,np.reshape(t,(len(t),1))),axis=1)            
+            save_data.append(s)
+
+k = np.concatenate(save_data,axis=0)
+with open('../data/Wall/test_data_24sensors_logits.pt','wb') as f:
+     torch.save(k,f)
+
+

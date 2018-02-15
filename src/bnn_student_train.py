@@ -26,21 +26,22 @@ class RegressionModel(nn.Module):
 
     def forward(self, x):
         x = self.fc1(x)
-        x = self.fc2(x)
+        x = F.sigmoid(self.fc2(x))
         x = self.fc3(x)
         x = self.fc4(x)
+        x = F.log_softmax(x,dim=-1)
 
         return x
 
 
 data = []
-with open('../data/Wall/train_data_24sensors_1hot.pt','rb') as f:
+with open('../data/Wall/train_data_24sensors_1hot_scaled.pt','rb') as f:
      data = Variable(torch.Tensor(torch.load(f)))
      
 
 N = len(data)  # size of data
 p = 24  # number of features
-hidden_nodes = 2
+hidden_nodes = 16
 output_nodes = 4
 softplus = nn.Softplus()
 regression_model = RegressionModel(p,hidden_nodes,output_nodes)
@@ -200,7 +201,7 @@ def guide(data):
 
 
 # instantiate optim and inference objects
-optim = Adam({"lr": 0.01})
+optim = Adam({"lr": 0.05})
 svi = SVI(model, guide, optim, loss="ELBO")
 
 
@@ -248,9 +249,10 @@ def main(args,data):
             print("epoch avg loss {}".format(epoch_loss/float(N)))
             writer.add_scalar('data/epoch_loss_avg', epoch_loss/float(N), j/100)
 
+        """
         for name, param in regression_model.named_parameters():
             writer.add_histogram(name, param.clone().cpu().data.numpy(), j)
-
+        """
         writer.add_scalar('data/epoch_loss', epoch_loss, j)
 
 
@@ -258,11 +260,11 @@ def main(args,data):
     # Validate - test model
     print("Validate trained model...")
     test_data = []
-    with open('../data/Wall/test_data_24sensors_1hot.pt','rb') as f: 
+    with open('../data/Wall/test_data_24sensors_1hot_scaled.pt','rb') as f: 
          test_data = Variable(torch.Tensor(torch.load(f))) 
 
     #Number of parameter sampling steps
-    n_samples = 200
+    n_samples = 100
     
     loss = nn.NLLLoss()
     x_data, y_data = test_data[:,0:24], test_data[:,24:28]

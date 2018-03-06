@@ -19,7 +19,7 @@ from debug_visualisation import visualise_and_debug
 hidden_nodes = 10
 hidden_nodes2 = 10
 hidden_nodes3 = 10
-output_nodes = 1
+output_nodes = 4
 feature_num = 2
 softplus = nn.Softplus()
 p = feature_num
@@ -40,9 +40,9 @@ class RegressionModel(nn.Module):
 
     def forward(self, x):
         x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
+#        x = F.relu(self.fc2(x))
 #        x = F.sigmoid(self.fc3(x))
-        x = F.softmax(self.fc4(x))
+        x = F.sigmoid(self.fc4(x))
 #        x = F.log_softmax(x,dim=-1) 
 
         return x
@@ -216,23 +216,23 @@ def main(args,data,test_data,softplus,regression_model,feature_num,N,debug=True)
     #Initialize summary writer for Tensorboard
     writer = SummaryWriter()
 
+    x_data, y_data = test_data[:,0:feature_num], test_data[:,feature_num:feature_num+4] #feature_num+4 : change if not 1-hot
     global CUDA_    
     if args.cuda:
         # make tensors and modules CUDA
         CUDA_ = True
         data = data.cuda()
         test_data = test_data.cuda()
-        x_data, y_data = test_data[:,0:feature_num], test_data[:,feature_num:feature_num+4] #feature_num+4 : change if not 1-hot
         x_data, y_data = x_data.cuda(), y_data.cuda()
         softplus.cuda()
         regression_model.cuda()
 
 
     #Monitor model graph
-    writer.add_graph(regression_model, data[:, 0:feature_num], verbose=False)
+    writer.add_graph(regression_model, data[:, 0:feature_num], verbose=True)
 
     # instantiate optim and inference objects
-    optim = Adam({"lr":0.02})
+    optim = Adam({"lr":0.005})
     svi = SVI(model, guide, optim, loss="ELBO")
 
 
@@ -268,30 +268,32 @@ def main(args,data,test_data,softplus,regression_model,feature_num,N,debug=True)
     print("Validate trained model...")
          
     #Number of parameter sampling steps
-    n_samples = 100
+    n_samples = 500
     y_preds = [] 
     avg_pred = 0.0
     #Create list of float tensors each containing the evaluation of the test data by a sampled BNN
 
     if debug:
-       tst_data, X, Y = create_grid(-12, 12, 50)    ################################## FIX FOR ANY DATASET??
-
+       tst_data, X, Y = create_grid(-12, 12, 50) 
+    else:
+       minx = np.amin(x_data.data.numpy())
+       maxx = np.amax(x_data.data.numpy())
+       tst_data, X, Y = create_grid(minx-0.001,maxx+0.001, 50)
+       
     for i in range(n_samples):
     # guide does not require the data
         sampled_reg_model = guide(None)
-        y_preds.append(sampled_reg_model(Variable(torch.Tensor(tst_data))))
+        y_preds.append(sampled_reg_model(x_data))
         if debug:
-           avg_pred += sampled_reg_model(Variable(torch.Tensor(tst_data))).data.numpy()  
-   
+           y_preds.append(sampled_reg_model(Variable(torch.Tensor(tst_data))))
+        avg_pred += sampled_reg_model(Variable(torch.Tensor(tst_data))).data.numpy()  
       
     #Print actual direction: 0-3
- 
-    if debug:
-        avg_pred /= n_samples
-        base_pred = sampled_reg_model(Variable(torch.Tensor(tst_data))).data.numpy()
-        visualise_and_debug(y_preds,avg_pred,base_pred,data,n_samples,predictionPDF='/tmp/PredictionPDF.pt',PDFcenters='/tmp/PDFCenters.pt')    
-
-
+    
+    
+    avg_pred /= n_samples
+    base_pred = sampled_reg_model(Variable(torch.Tensor(tst_data))).data.numpy()
+    visualise_and_debug(y_preds,avg_pred,base_pred,data,n_samples,X,Y,predictionPDF='/tmp/PredictionPDF.pt',PDFcenters='/tmp/PDFCenters.pt',debug=debug)    
 
     writer.close()
 
@@ -308,13 +310,13 @@ def initialize(filename_train,filename_test,feature_num,debug=False):
 
      
    N = len(data)  # size of data
-
-
    regression_model = RegressionModel(feature_num,hidden_nodes,hidden_nodes2,hidden_nodes3,output_nodes)
 
    if debug:
       xs1, ys1 = create_dataset()
-      data1 = np.hstack((xs1,ys1.reshape(len(xs1),1))) 
+      data1 = np.hstack((xs1,ys1.reshape(len(xs1),1)))
+      with open('./tst_data.pt','wb') as f:
+          torch.save(data1,f)
       data = Variable(torch.Tensor(data1))
 
 
@@ -331,7 +333,7 @@ if __name__ == '__main__':
     filename_test =  '../data/Wall/test_data_2sensors_1hot_scaled.pt'
 
     # Currently no CUDA on debug mode
-    debug = True
+    debug = False
     data,test_data,N,hidden_nodes,hidden_nodes2,hidden_nodes3,output_nodes,softplus,regression_model = initialize(filename_train,filename_test,feature_num,debug)
 
     parser = argparse.ArgumentParser(description="parse args")

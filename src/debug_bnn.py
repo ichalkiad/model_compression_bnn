@@ -1,7 +1,8 @@
 import numpy.random as rng
 import numpy as np
 
-wdecay = 0.0001                                                                                                                                                                                                                                                                                                                                                                                                                        
+wdecay = 0.0001
+
 def create_dataset():
     """
     Creates a small dataset of 2d points in two linearly separable classes.

@@ -8,43 +8,45 @@ from torch.autograd import Variable
 import pyro
 from pyro.distributions import Normal, Bernoulli 
 from pyro.infer import SVI
-from pyro.optim import Adam, SGD
+from pyro.optim import Adam, SGD, ClippedAdam
 import cPickle
 from tensorboardX import SummaryWriter
+
+from debug_bnn import wdecay, create_dataset, create_grid
+from debug_visualisation import visualise_and_debug
+
+
+hidden_nodes = 10
+hidden_nodes2 = 10
+hidden_nodes3 = 10
+output_nodes = 1
+feature_num = 2
+softplus = nn.Softplus()
+p = feature_num
 
 
 # NN 
 class RegressionModel(nn.Module):
-    def __init__(self, p, hidden_nodes,output_nodes):
+    def __init__(self, p, hidden_nodes,hidden_nodes2,hidden_nodes3,output_nodes):
         super(RegressionModel, self).__init__()
         self.hidden_nodes = hidden_nodes
+        self.hidden_nodes2 = hidden_nodes2
+        self.hidden_nodes3 = hidden_nodes3
         self.output_nodes = output_nodes
         self.fc1 = nn.Linear(p, self.hidden_nodes)
-        self.fc2 = nn.Linear(self.hidden_nodes, self.hidden_nodes)
-        self.fc3 = nn.Linear(self.hidden_nodes, self.hidden_nodes)
-        self.fc4 = nn.Linear(self.hidden_nodes, self.output_nodes)
+        self.fc2 = nn.Linear(self.hidden_nodes, self.hidden_nodes2)
+        self.fc3 = nn.Linear(self.hidden_nodes2, self.hidden_nodes3)
+        self.fc4 = nn.Linear(self.hidden_nodes3, self.output_nodes)
 
     def forward(self, x):
-        x = self.fc1(x)
-        x = F.sigmoid(self.fc2(x))
-        x = self.fc3(x)
-        x = self.fc4(x)
-        x = F.log_softmax(x,dim=-1)
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+#        x = F.sigmoid(self.fc3(x))
+        x = F.softmax(self.fc4(x))
+#        x = F.log_softmax(x,dim=-1) 
 
         return x
 
-
-data = []
-with open('../data/Wall/train_data_24sensors_1hot_scaled.pt','rb') as f:
-     data = Variable(torch.Tensor(torch.load(f)))
-     
-
-N = len(data)  # size of data
-p = 24  # number of features
-hidden_nodes = 16
-output_nodes = 4
-softplus = nn.Softplus()
-regression_model = RegressionModel(p,hidden_nodes,output_nodes)
 
 
 def model(data):
@@ -55,18 +57,18 @@ def model(data):
         bias_mu1 = Variable(torch.zeros(1, hidden_nodes)).cuda()
         bias_sigma1 = Variable(torch.ones(1, hidden_nodes)).cuda()
 
-        mu2 = Variable(torch.zeros(hidden_nodes, hidden_nodes)).cuda()
-        sigma2 = Variable(torch.ones(hidden_nodes, hidden_nodes)).cuda()
-        bias_mu2 = Variable(torch.zeros(1, hidden_nodes)).cuda()
-        bias_sigma2 = Variable(torch.ones(1, hidden_nodes)).cuda()
+        mu2 = Variable(torch.zeros(hidden_nodes2, hidden_nodes)).cuda()
+        sigma2 = Variable(torch.ones(hidden_nodes2, hidden_nodes)).cuda()
+        bias_mu2 = Variable(torch.zeros(1, hidden_nodes2)).cuda()
+        bias_sigma2 = Variable(torch.ones(1, hidden_nodes2)).cuda()
 
-        mu3 = Variable(torch.zeros(hidden_nodes, hidden_nodes)).cuda()
-        sigma3 = Variable(torch.ones(hidden_nodes, hidden_nodes)).cuda()
-        bias_mu3 = Variable(torch.zeros(1, hidden_nodes)).cuda()
-        bias_sigma3 = Variable(torch.ones(1, hidden_nodes)).cuda()
+        mu3 = Variable(torch.zeros(hidden_nodes3, hidden_nodes2)).cuda()
+        sigma3 = Variable(torch.ones(hidden_nodes3, hidden_nodes2)).cuda()
+        bias_mu3 = Variable(torch.zeros(1, hidden_nodes3)).cuda()
+        bias_sigma3 = Variable(torch.ones(1, hidden_nodes3)).cuda()
 
-        mu4 = Variable(torch.zeros(output_nodes, hidden_nodes)).cuda()
-        sigma4 = Variable(torch.ones(output_nodes, hidden_nodes)).cuda()
+        mu4 = Variable(torch.zeros(output_nodes, hidden_nodes3)).cuda()
+        sigma4 = Variable(torch.ones(output_nodes, hidden_nodes3)).cuda()
         bias_mu4 = Variable(torch.zeros(1, output_nodes)).cuda()
         bias_sigma4 = Variable(torch.ones(1, output_nodes)).cuda()
     else:
@@ -75,18 +77,18 @@ def model(data):
         bias_mu1 = Variable(torch.zeros(1, hidden_nodes))
         bias_sigma1 = Variable(torch.ones(1, hidden_nodes))
 
-        mu2 = Variable(torch.zeros(hidden_nodes, hidden_nodes))
-        sigma2 = Variable(torch.ones(hidden_nodes, hidden_nodes))
-        bias_mu2 = Variable(torch.zeros(1, hidden_nodes))
-        bias_sigma2 = Variable(torch.ones(1, hidden_nodes))
+        mu2 = Variable(torch.zeros(hidden_nodes2, hidden_nodes))
+        sigma2 = Variable(torch.ones(hidden_nodes2, hidden_nodes))
+        bias_mu2 = Variable(torch.zeros(1, hidden_nodes2))
+        bias_sigma2 = Variable(torch.ones(1, hidden_nodes2))
 
-        mu3 = Variable(torch.zeros(hidden_nodes, hidden_nodes))
-        sigma3 = Variable(torch.ones(hidden_nodes, hidden_nodes))
-        bias_mu3 = Variable(torch.zeros(1, hidden_nodes))
-        bias_sigma3 = Variable(torch.ones(1, hidden_nodes))
+        mu3 = Variable(torch.zeros(hidden_nodes3, hidden_nodes2))
+        sigma3 = Variable(torch.ones(hidden_nodes3, hidden_nodes2))
+        bias_mu3 = Variable(torch.zeros(1, hidden_nodes3))
+        bias_sigma3 = Variable(torch.ones(1, hidden_nodes3))
 
-        mu4 = Variable(torch.zeros(output_nodes, hidden_nodes))
-        sigma4 = Variable(torch.ones(output_nodes, hidden_nodes))
+        mu4 = Variable(torch.zeros(output_nodes, hidden_nodes3))
+        sigma4 = Variable(torch.ones(output_nodes, hidden_nodes3))
         bias_mu4 = Variable(torch.zeros(1, output_nodes))
         bias_sigma4 = Variable(torch.ones(1, output_nodes))
 
@@ -103,8 +105,8 @@ def model(data):
     lifted_reg_model = lifted_module()
 
     with pyro.iarange("map", N, subsample=data):
-        x_data = data[:, 0:24]
-        y_data = data[:, 24:28]
+        x_data = data[:, 0:feature_num]
+        y_data = data[:, feature_num:feature_num+4] # feature_num+4: change if not 1-hot
         # run the regressor forward conditioned on inputs
         prediction_mean = lifted_reg_model(x_data).squeeze()
         pyro.sample("obs",
@@ -119,18 +121,18 @@ def guide(data):
         b_mu1 = Variable(torch.randn(1, hidden_nodes).cuda(), requires_grad=True)
         b_log_sig1 = Variable((-3.0 * torch.ones(1, hidden_nodes) + 0.05 * torch.randn(1, hidden_nodes)).cuda(), requires_grad=True)
 
-        w_mu2 = Variable(torch.randn(hidden_nodes, hidden_nodes).cuda(), requires_grad=True)
-        w_log_sig2 = Variable((-3.0 * torch.ones(hidden_nodes, hidden_nodes) + 0.05 * torch.randn(hidden_nodes, hidden_nodes)).cuda(), requires_grad=True)
-        b_mu2 = Variable(torch.randn(1, hidden_nodes).cuda(), requires_grad=True)
-        b_log_sig2 = Variable((-3.0 * torch.ones(1, hidden_nodes) + 0.05 * torch.randn(1, hidden_nodes)).cuda(), requires_grad=True)
+        w_mu2 = Variable(torch.randn(hidden_nodes2, hidden_nodes).cuda(), requires_grad=True)
+        w_log_sig2 = Variable((-3.0 * torch.ones(hidden_nodes2, hidden_nodes) + 0.05 * torch.randn(hidden_nodes2, hidden_nodes)).cuda(), requires_grad=True)
+        b_mu2 = Variable(torch.randn(1, hidden_nodes2).cuda(), requires_grad=True)
+        b_log_sig2 = Variable((-3.0 * torch.ones(1, hidden_nodes2) + 0.05 * torch.randn(1, hidden_nodes2)).cuda(), requires_grad=True)
 
-        w_mu3 = Variable(torch.randn(hidden_nodes, hidden_nodes).cuda(), requires_grad=True)
-        w_log_sig3 = Variable((-3.0 * torch.ones(hidden_nodes, hidden_nodes) + 0.05 * torch.randn(hidden_nodes, hidden_nodes)).cuda(), requires_grad=True)
-        b_mu3 = Variable(torch.randn(1, hidden_nodes).cuda(), requires_grad=True)
-        b_log_sig3 = Variable((-3.0 * torch.ones(1, hidden_nodes) + 0.05 * torch.randn(1, hidden_nodes)).cuda(), requires_grad=True)
+        w_mu3 = Variable(torch.randn(hidden_nodes3, hidden_nodes2).cuda(), requires_grad=True)
+        w_log_sig3 = Variable((-3.0 * torch.ones(hidden_nodes3, hidden_nodes2) + 0.05 * torch.randn(hidden_nodes3, hidden_nodes2)).cuda(), requires_grad=True)
+        b_mu3 = Variable(torch.randn(1, hidden_nodes3).cuda(), requires_grad=True)
+        b_log_sig3 = Variable((-3.0 * torch.ones(1, hidden_nodes3) + 0.05 * torch.randn(1, hidden_nodes3)).cuda(), requires_grad=True)
 
-        w_mu4 = Variable(torch.randn(output_nodes, hidden_nodes).cuda(), requires_grad=True)
-        w_log_sig4 = Variable((-3.0 * torch.ones(output_nodes, hidden_nodes) + 0.05 * torch.randn(output_nodes, hidden_nodes)).cuda(), requires_grad=True)
+        w_mu4 = Variable(torch.randn(output_nodes, hidden_nodes3).cuda(), requires_grad=True)
+        w_log_sig4 = Variable((-3.0 * torch.ones(output_nodes, hidden_nodes3) + 0.05 * torch.randn(output_nodes, hidden_nodes3)).cuda(), requires_grad=True)
         b_mu4 = Variable(torch.randn(1, output_nodes).cuda(), requires_grad=True)
         b_log_sig4 = Variable((-3.0 * torch.ones(1, output_nodes) + 0.05 * torch.randn(1, output_nodes)).cuda(), requires_grad=True)
 
@@ -140,18 +142,18 @@ def guide(data):
         b_mu1 = Variable(torch.randn(1, hidden_nodes), requires_grad=True)
         b_log_sig1 = Variable((-3.0 * torch.ones(1, hidden_nodes) + 0.05 * torch.randn(1, hidden_nodes)), requires_grad=True)
 
-        w_mu2 = Variable(torch.randn(hidden_nodes, hidden_nodes), requires_grad=True)
-        w_log_sig2 = Variable((-3.0 * torch.ones(hidden_nodes, hidden_nodes) + 0.05 * torch.randn(hidden_nodes, hidden_nodes)), requires_grad=True)
-        b_mu2 = Variable(torch.randn(1, hidden_nodes), requires_grad=True)
-        b_log_sig2 = Variable((-3.0 * torch.ones(1, hidden_nodes) + 0.05 * torch.randn(1, hidden_nodes)), requires_grad=True)
+        w_mu2 = Variable(torch.randn(hidden_nodes2, hidden_nodes), requires_grad=True)
+        w_log_sig2 = Variable((-3.0 * torch.ones(hidden_nodes2, hidden_nodes) + 0.05 * torch.randn(hidden_nodes2, hidden_nodes)), requires_grad=True)
+        b_mu2 = Variable(torch.randn(1, hidden_nodes2), requires_grad=True)
+        b_log_sig2 = Variable((-3.0 * torch.ones(1, hidden_nodes2) + 0.05 * torch.randn(1, hidden_nodes2)), requires_grad=True)
 
-        w_mu3 = Variable(torch.randn(hidden_nodes, hidden_nodes), requires_grad=True)
-        w_log_sig3 = Variable((-3.0 * torch.ones(hidden_nodes, hidden_nodes) + 0.05 * torch.randn(hidden_nodes, hidden_nodes)), requires_grad=True)
-        b_mu3 = Variable(torch.randn(1, hidden_nodes), requires_grad=True)
-        b_log_sig3 = Variable((-3.0 * torch.ones(1, hidden_nodes) + 0.05 * torch.randn(1, hidden_nodes)), requires_grad=True)
+        w_mu3 = Variable(torch.randn(hidden_nodes3, hidden_nodes2), requires_grad=True)
+        w_log_sig3 = Variable((-3.0 * torch.ones(hidden_nodes3, hidden_nodes2) + 0.05 * torch.randn(hidden_nodes3, hidden_nodes2)), requires_grad=True)
+        b_mu3 = Variable(torch.randn(1, hidden_nodes3), requires_grad=True)
+        b_log_sig3 = Variable((-3.0 * torch.ones(1, hidden_nodes3) + 0.05 * torch.randn(1, hidden_nodes3)), requires_grad=True)
 
-        w_mu4 = Variable(torch.randn(output_nodes, hidden_nodes), requires_grad=True)
-        w_log_sig4 = Variable((-3.0 * torch.ones(output_nodes, hidden_nodes) + 0.05 * torch.randn(output_nodes, hidden_nodes)), requires_grad=True)
+        w_mu4 = Variable(torch.randn(output_nodes, hidden_nodes3), requires_grad=True)
+        w_log_sig4 = Variable((-3.0 * torch.ones(output_nodes, hidden_nodes3) + 0.05 * torch.randn(output_nodes, hidden_nodes3)), requires_grad=True)
         b_mu4 = Variable(torch.randn(1, output_nodes), requires_grad=True)
         b_log_sig4 = Variable((-3.0 * torch.ones(1, output_nodes) + 0.05 * torch.randn(1, output_nodes)), requires_grad=True)
 
@@ -200,10 +202,6 @@ def guide(data):
     return lifted_module()
 
 
-# instantiate optim and inference objects
-optim = Adam({"lr": 0.05})
-svi = SVI(model, guide, optim, loss="ELBO")
-
 
 # get array of batch indices
 def get_batch_indices(N, batch_size):
@@ -213,7 +211,7 @@ def get_batch_indices(N, batch_size):
     return all_batches
 
 
-def main(args,data):
+def main(args,data,test_data,softplus,regression_model,feature_num,N,debug=True):
 
     #Initialize summary writer for Tensorboard
     writer = SummaryWriter()
@@ -223,11 +221,20 @@ def main(args,data):
         # make tensors and modules CUDA
         CUDA_ = True
         data = data.cuda()
+        test_data = test_data.cuda()
+        x_data, y_data = test_data[:,0:feature_num], test_data[:,feature_num:feature_num+4] #feature_num+4 : change if not 1-hot
+        x_data, y_data = x_data.cuda(), y_data.cuda()
         softplus.cuda()
         regression_model.cuda()
 
+
     #Monitor model graph
-    writer.add_graph(regression_model, data[:, 0:24], verbose=False)
+    writer.add_graph(regression_model, data[:, 0:feature_num], verbose=False)
+
+    # instantiate optim and inference objects
+    optim = Adam({"lr":0.02})
+    svi = SVI(model, guide, optim, loss="ELBO")
+
 
     for j in range(args.num_epochs):
         if args.batch_size == N:
@@ -245,65 +252,92 @@ def main(args,data):
                 batch_end = all_batches[ix + 1]
                 batch_data = data[batch_start: batch_end]
                 epoch_loss += svi.step(batch_data)
-        if j % 100 == 0:
+        if j % 10 == 0:
             print("epoch avg loss {}".format(epoch_loss/float(N)))
             writer.add_scalar('data/epoch_loss_avg', epoch_loss/float(N), j/100)
 
-        """
+        
         for name, param in regression_model.named_parameters():
             writer.add_histogram(name, param.clone().cpu().data.numpy(), j)
-        """
+        
         writer.add_scalar('data/epoch_loss', epoch_loss, j)
 
 
 
     # Validate - test model
     print("Validate trained model...")
-    test_data = []
-    with open('../data/Wall/test_data_24sensors_1hot_scaled.pt','rb') as f: 
-         test_data = Variable(torch.Tensor(torch.load(f))) 
-
+         
     #Number of parameter sampling steps
     n_samples = 100
-    
-    loss = nn.NLLLoss()
-    x_data, y_data = test_data[:,0:24], test_data[:,24:28]
-    
-    if args.cuda:
-        test_data = test_data.cuda()
-        x_data, y_data = x_data.cuda(), y_data.cuda()
-
     y_preds = [] 
-    probs = []
-    centers = []
+    avg_pred = 0.0
     #Create list of float tensors each containing the evaluation of the test data by a sampled BNN
+
+    if debug:
+       tst_data, X, Y = create_grid(-12, 12, 50)    ################################## FIX FOR ANY DATASET??
+
     for i in range(n_samples):
     # guide does not require the data
         sampled_reg_model = guide(None)
-        y_preds.append(sampled_reg_model(x_data))
-
-    #Create histograms of sample predictions to form the final posterior predictive distribution
-    for i in y_preds:
-        histogram = np.histogram(i.detach().cpu().numpy(), bins=20)
-        probs.append(histogram[0] / float(n_samples))
-        delta = histogram[1][1] - histogram[1][0]
-        centers.append([np.float32(a + delta / 2) for a in histogram[1][:-1]])
-    with open('PredictionPDF.pt','wb') as f: 
-         torch.save(probs,f)
-    with open('PDFCenters.pt','wb') as f: 
-         torch.save(centers,f)
-
-
+        y_preds.append(sampled_reg_model(Variable(torch.Tensor(tst_data))))
+        if debug:
+           avg_pred += sampled_reg_model(Variable(torch.Tensor(tst_data))).data.numpy()  
    
+      
+    #Print actual direction: 0-3
+ 
+    if debug:
+        avg_pred /= n_samples
+        base_pred = sampled_reg_model(Variable(torch.Tensor(tst_data))).data.numpy()
+        visualise_and_debug(y_preds,avg_pred,base_pred,data,n_samples,predictionPDF='/tmp/PredictionPDF.pt',PDFcenters='/tmp/PDFCenters.pt')    
+
+
+
     writer.close()
 
 
+def initialize(filename_train,filename_test,feature_num,debug=False):
+
+   data = []
+   with open(filename_train,'rb') as f:
+        data = Variable(torch.Tensor(torch.load(f)))
+
+   test_data = []
+   with open(filename_test,'rb') as f: 
+        test_data = Variable(torch.Tensor(torch.load(f))) 
+
+     
+   N = len(data)  # size of data
+
+
+   regression_model = RegressionModel(feature_num,hidden_nodes,hidden_nodes2,hidden_nodes3,output_nodes)
+
+   if debug:
+      xs1, ys1 = create_dataset()
+      data1 = np.hstack((xs1,ys1.reshape(len(xs1),1))) 
+      data = Variable(torch.Tensor(data1))
+
+
+   return data,test_data,N,hidden_nodes,hidden_nodes2,hidden_nodes3,output_nodes,softplus,regression_model
+
+
+
 if __name__ == '__main__':
+    CUDA_ = False
+  
+    xs = None    
+    ys = None
+    filename_train = '../data/Wall/train_data_2sensors_1hot_scaled.pt'
+    filename_test =  '../data/Wall/test_data_2sensors_1hot_scaled.pt'
+
+    # Currently no CUDA on debug mode
+    debug = True
+    data,test_data,N,hidden_nodes,hidden_nodes2,hidden_nodes3,output_nodes,softplus,regression_model = initialize(filename_train,filename_test,feature_num,debug)
+
     parser = argparse.ArgumentParser(description="parse args")
     parser.add_argument('-n', '--num-epochs', default=1000, type=int)
     parser.add_argument('-b', '--batch-size', default=N, type=int)
     parser.add_argument('--cuda', action='store_true')
     args = parser.parse_args()
-    CUDA_ = False
 
-    main(args,data)
+    main(args,data,test_data,softplus,regression_model,feature_num,N,debug)

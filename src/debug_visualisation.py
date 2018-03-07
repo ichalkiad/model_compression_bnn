@@ -84,7 +84,7 @@ def visualise_navigation_ds(avg_pred,base_pred,xs,ys,X,Y):
     """
 
     ap = np.argmax(avg_pred,axis=1)
-    
+
     # plot the average prediction surface                                                                                                                                         
     fig = plt.figure()                                                                                                                                                  
     ax = fig.gca()  #(projection='3d')                                                                                                                              

@@ -41,7 +41,7 @@ class RegressionModel(nn.Module):
     def forward(self, x):
         x = F.relu(self.fc1(x))
 #        x = F.relu(self.fc2(x))
-#        x = F.sigmoid(self.fc3(x))
+#        x = F.relu(self.fc3(x))
         x = F.sigmoid(self.fc4(x))
 #        x = F.log_softmax(x,dim=-1) 
 
@@ -232,7 +232,7 @@ def main(args,data,test_data,softplus,regression_model,feature_num,N,debug=True)
     writer.add_graph(regression_model, data[:, 0:feature_num], verbose=True)
 
     # instantiate optim and inference objects
-    optim = Adam({"lr":0.005})
+    optim = Adam({"lr":0.01})
     svi = SVI(model, guide, optim, loss="ELBO")
 
 
@@ -268,7 +268,7 @@ def main(args,data,test_data,softplus,regression_model,feature_num,N,debug=True)
     print("Validate trained model...")
          
     #Number of parameter sampling steps
-    n_samples = 500
+    n_samples = 1000
     y_preds = [] 
     avg_pred = 0.0
     #Create list of float tensors each containing the evaluation of the test data by a sampled BNN
@@ -302,7 +302,11 @@ def initialize(filename_train,filename_test,feature_num,debug=False):
 
    data = []
    with open(filename_train,'rb') as f:
-        data = Variable(torch.Tensor(torch.load(f)))
+        """
+        logits train
+        """
+        a = torch.load(f)[:,0:6]
+        data = Variable(torch.Tensor(a))
 
    test_data = []
    with open(filename_test,'rb') as f: 
@@ -329,7 +333,7 @@ if __name__ == '__main__':
   
     xs = None    
     ys = None
-    filename_train = '../data/Wall/train_data_2sensors_1hot_scaled.pt'
+    filename_train = '../data/Wall/train_data_2sensors_logits.pt'
     filename_test =  '../data/Wall/test_data_2sensors_1hot_scaled.pt'
 
     # Currently no CUDA on debug mode

@@ -16,9 +16,9 @@ from debug_bnn import wdecay, create_dataset, create_grid
 from debug_visualisation import visualise_and_debug
 
 
-hidden_nodes = 10
-hidden_nodes2 = 10
-hidden_nodes3 = 10
+hidden_nodes = 1000
+hidden_nodes2 = 1000
+hidden_nodes3 = 1000
 output_nodes = 4
 feature_num = 2
 softplus = nn.Softplus()

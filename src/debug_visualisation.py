@@ -56,12 +56,11 @@ def visualise_navigation_ds(avg_pred,base_pred,xs,ys,X,Y):
     Visualize decision surface based on a sample of the network
     """
     y = np.argmax(ys,axis=1)
-    bp = np.argmax(base_pred,axis=1)
     
     # plot the base prediction surface
     fig1 = plt.figure()
     ax = fig1.gca()
-    Z = bp.reshape(list(X.shape))
+    Z = base_pred.reshape(list(X.shape))
     """
     ax.plot_surface(X, Y, Z, rstride=1, cstride=1, cmap=cm.coolwarm, linewidth=0)
     """
@@ -83,12 +82,10 @@ def visualise_navigation_ds(avg_pred,base_pred,xs,ys,X,Y):
     Visualize decision surface based on an average of network samples
     """
 
-    ap = np.argmax(avg_pred,axis=1)
-
     # plot the average prediction surface                                                                                                                                         
     fig = plt.figure()                                                                                                                                                  
     ax = fig.gca()  #(projection='3d')                                                                                                                              
-    Z = ap.reshape(list(X.shape))
+    Z = avg_pred.reshape(list(X.shape))
     plt.pcolormesh(X, Y, Z, cmap=cmap_light)
     """
     ax.plot_surface(X, Y, Z, rstride=1, cstride=1, cmap=cm.coolwarm, linewidth=0)                                                                        
@@ -115,16 +112,16 @@ def visualise_and_debug(y_preds,avg_pred,base_pred,data,n_samples,X,Y,prediction
 
     #Create histograms of sample predictions to form the final posterior predictive distribution
     probs = [] 
-    centers = []
-    for i in xrange(len(y_preds)):
+    #centers = []
+    for i in xrange(y_preds.shape[1]):
         histogram = np.histogram(y_preds[:,i],bins=4,density=False)
         probs.append(histogram[0] / float(n_samples))
-        delta = histogram[1][1] - histogram[1][0]
-        centers.append([np.float32(a + delta / 2) for a in histogram[1][:-1]])
+        #delta = histogram[1][1] - histogram[1][0]
+        #centers.append([np.float32(a + delta / 2) for a in histogram[1][:-1]])
     with open(predictionPDF,'wb') as f:
          torch.save(probs,f)
-    with open(PDFcenters,'wb') as f:
-         torch.save(centers,f)
+    #with open(PDFcenters,'wb') as f:
+    #     torch.save(centers,f)
 
     if debug:
        fig1 = visualise_sample_ds(base_pred,xs,ys,X,Y)

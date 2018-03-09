@@ -16,9 +16,9 @@ from debug_bnn import wdecay, create_dataset, create_grid
 from debug_visualisation import visualise_and_debug
 
 
-hidden_nodes = 10
-hidden_nodes2 = 10
-hidden_nodes3 = 10
+hidden_nodes = 100
+hidden_nodes2 = 100
+hidden_nodes3 = 100
 output_nodes = 4
 feature_num = 2
 softplus = nn.Softplus()
@@ -268,7 +268,7 @@ def main(args,data,test_data,softplus,regression_model,feature_num,N,debug=True)
     print("Validate trained model...")
          
     #Number of parameter sampling steps
-    n_samples = 5
+    n_samples = 10000
     y_preds = [] 
     avg_pred = 0.0
     #Create list of float tensors each containing the evaluation of the test data by a sampled BNN
@@ -279,28 +279,37 @@ def main(args,data,test_data,softplus,regression_model,feature_num,N,debug=True)
        minx = np.amin(x_data.data.numpy())
        maxx = np.amax(x_data.data.numpy())
        tst_data, X, Y = create_grid(minx-0.001,maxx+0.001, 50)
-       
+
+    avg_pred = []
     for i in range(n_samples):
     # guide does not require the data
         sampled_reg_model = guide(None)
         if debug:
            y_preds.append(np.argmax(sampled_reg_model(Variable(torch.Tensor(tst_data))).data.numpy(),axis=1))
+            
         else:
            y_preds.append(np.argmax(sampled_reg_model(x_data).data.numpy(),axis=1))
-        avg_pred += sampled_reg_model(Variable(torch.Tensor(tst_data))).data.numpy()  
-
-    y_pred_np = np.asarray(y_preds)      
+        avg_pred.append(np.argmax(sampled_reg_model(Variable(torch.Tensor(tst_data))).data.numpy(),axis=1))
     
+    y_pred_np = np.asarray(y_preds)      
+    avg_pred_np = np.asarray(avg_pred)
+    
+    # Needed for decision surface visualisation
+    ap_tst = []
+    for i in xrange(len(tst_data)):
+         ap_tst.append(np.argmax(np.bincount(avg_pred_np[:,i])))
+    majority_class_tst = np.asarray(ap_tst)
+
     ap = []
     for i in xrange(len(x_data)):
         ap.append(np.argmax(np.bincount(y_pred_np[:,i])))
     # Use majority_class to get accuracy on test data    
     majority_class = np.asarray(ap)
+    print("Prediction accuracy on test set is",len(np.where(majority_class==np.argmax(y_data.data.numpy(),axis=1))[0])/float(len(majority_class))*100,"%")
     
-    avg_pred /= n_samples
-    base_pred = sampled_reg_model(Variable(torch.Tensor(tst_data))).data.numpy()
+    base_pred = np.argmax(sampled_reg_model(Variable(torch.Tensor(tst_data))).data.numpy(),axis=1)
     
-    visualise_and_debug(y_pred_np,avg_pred,base_pred,data,n_samples,X,Y,predictionPDF='/tmp/PredictionPDF.pt',PDFcenters='/tmp/PDFCenters.pt',debug=debug)    
+    visualise_and_debug(y_pred_np,majority_class_tst,base_pred,data,n_samples,X,Y,predictionPDF='/tmp/PredictionPDF.pt',PDFcenters='/tmp/PDFCenters.pt',debug=debug)    
 
     writer.close()
 

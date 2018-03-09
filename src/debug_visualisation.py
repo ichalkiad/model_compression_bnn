@@ -113,11 +113,11 @@ def visualise_and_debug(y_preds,avg_pred,base_pred,data,n_samples,X,Y,prediction
     xs = data[:,0:2].data.numpy()
     ys = data[:,2].data.numpy()
 
-    #Create histograms of sample predictions to form the final posterior predictive distribution                                                                                         
+    #Create histograms of sample predictions to form the final posterior predictive distribution
     probs = [] 
     centers = []
-    for i in y_preds:
-        histogram = np.histogram(i.detach().cpu().data.numpy(), bins=20)
+    for i in xrange(len(y_preds)):
+        histogram = np.histogram(y_preds[:,i],bins=4,density=False)
         probs.append(histogram[0] / float(n_samples))
         delta = histogram[1][1] - histogram[1][0]
         centers.append([np.float32(a + delta / 2) for a in histogram[1][:-1]])

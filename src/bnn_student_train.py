@@ -8,7 +8,7 @@ from torch.autograd import Variable
 import pyro
 from pyro.distributions import Normal, Bernoulli 
 from pyro.infer import SVI
-from pyro.optim import Adam, SGD, ClippedAdam
+from pyro.optim import Adam, SGD
 import cPickle
 from tensorboardX import SummaryWriter
 
@@ -16,9 +16,9 @@ from debug_bnn import wdecay, create_dataset, create_grid
 from debug_visualisation import visualise_and_debug
 
 
-hidden_nodes = 1000
-hidden_nodes2 = 1000
-hidden_nodes3 = 1000
+hidden_nodes = 10
+hidden_nodes2 = 10
+hidden_nodes3 = 10
 output_nodes = 4
 feature_num = 2
 softplus = nn.Softplus()
@@ -268,7 +268,7 @@ def main(args,data,test_data,softplus,regression_model,feature_num,N,debug=True)
     print("Validate trained model...")
          
     #Number of parameter sampling steps
-    n_samples = 1000
+    n_samples = 5
     y_preds = [] 
     avg_pred = 0.0
     #Create list of float tensors each containing the evaluation of the test data by a sampled BNN
@@ -283,17 +283,24 @@ def main(args,data,test_data,softplus,regression_model,feature_num,N,debug=True)
     for i in range(n_samples):
     # guide does not require the data
         sampled_reg_model = guide(None)
-        y_preds.append(sampled_reg_model(x_data))
         if debug:
-           y_preds.append(sampled_reg_model(Variable(torch.Tensor(tst_data))))
+           y_preds.append(np.argmax(sampled_reg_model(Variable(torch.Tensor(tst_data))).data.numpy(),axis=1))
+        else:
+           y_preds.append(np.argmax(sampled_reg_model(x_data).data.numpy(),axis=1))
         avg_pred += sampled_reg_model(Variable(torch.Tensor(tst_data))).data.numpy()  
-      
-    #Print actual direction: 0-3
+
+    y_pred_np = np.asarray(y_preds)      
     
+    ap = []
+    for i in xrange(len(x_data)):
+        ap.append(np.argmax(np.bincount(y_pred_np[:,i])))
+    # Use majority_class to get accuracy on test data    
+    majority_class = np.asarray(ap)
     
     avg_pred /= n_samples
     base_pred = sampled_reg_model(Variable(torch.Tensor(tst_data))).data.numpy()
-    visualise_and_debug(y_preds,avg_pred,base_pred,data,n_samples,X,Y,predictionPDF='/tmp/PredictionPDF.pt',PDFcenters='/tmp/PDFCenters.pt',debug=debug)    
+    
+    visualise_and_debug(y_pred_np,avg_pred,base_pred,data,n_samples,X,Y,predictionPDF='/tmp/PredictionPDF.pt',PDFcenters='/tmp/PDFCenters.pt',debug=debug)    
 
     writer.close()
 

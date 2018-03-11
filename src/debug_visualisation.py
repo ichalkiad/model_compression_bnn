@@ -115,6 +115,7 @@ def visualise_and_debug(y_preds,avg_pred,base_pred,data,n_samples,X,Y,prediction
     #centers = []
     for i in xrange(y_preds.shape[1]):
         histogram = np.histogram(y_preds[:,i],bins=4,density=False)
+        print(histogram[0])
         probs.append(histogram[0] / float(n_samples))
         #delta = histogram[1][1] - histogram[1][0]
         #centers.append([np.float32(a + delta / 2) for a in histogram[1][:-1]])

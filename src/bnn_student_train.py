@@ -16,7 +16,7 @@ from debug_bnn import wdecay, create_dataset, create_grid
 from debug_visualisation import visualise_and_debug
 
 
-hidden_nodes  = 1000
+hidden_nodes  = 10000
 """
 hidden_nodes2 = 100000
 hidden_nodes3 = 100000
@@ -221,31 +221,31 @@ def get_batch_indices(N, batch_size):
     return all_batches
 
 
-def main(args,data,test_data,softplus,regression_model,feature_num,N,debug=True):
+def main(args,data,valid_data,test_data,softplus,regression_model,feature_num,N,debug=True):
 
     #Initialize summary writer for Tensorboard
-    writer = SummaryWriter()
+    writer = SummaryWriter('/tmp/runs_icha/')
 
     x_data, y_data = test_data[:,0:feature_num], test_data[:,feature_num:feature_num+4] #feature_num+4 : change if not 1-hot
+
     global CUDA_    
     if args.cuda:
         # make tensors and modules CUDA
         CUDA_ = True
         data = data.cuda()
-        test_data = test_data.cuda()
+        valid_data = valid_data.cuda()
         x_data, y_data = x_data.cuda(), y_data.cuda()
         softplus.cuda()
         regression_model.cuda()
-
 
     #Monitor model graph
     writer.add_graph(regression_model, data[:, 0:feature_num], verbose=True)
 
     # instantiate optim and inference objects
     optim = Adam({"lr":0.01})
-    svi = SVI(model, guide, optim, loss="ELBO")
-
-
+    svi = SVI(model, guide, optim, loss="ELBO", num_particles=50)
+    rec_step = 100
+    
     for j in range(args.num_epochs):
         if args.batch_size == N:
             # use the entire data set
@@ -262,45 +262,62 @@ def main(args,data,test_data,softplus,regression_model,feature_num,N,debug=True)
                 batch_end = all_batches[ix + 1]
                 batch_data = data[batch_start: batch_end]
                 epoch_loss += svi.step(batch_data)
-        if j % 10 == 0:
-            print("epoch avg loss {}".format(epoch_loss/float(N)))
-            writer.add_scalar('data/epoch_loss_avg', epoch_loss/float(N), j/100)
+            
+        epoch_loss_valid = svi.evaluate_loss(valid_data)   
 
-        
+        if j % rec_step == 0:
+            print("Training set: epoch avg loss {}".format(epoch_loss/float(N)))
+            writer.add_scalar('data/train_loss_avg', epoch_loss/float(N), j/rec_step)
+            print("Validation set: epoch avg loss {}".format(epoch_loss_valid/len(valid_data)))
+            writer.add_scalar('data/valid_loss_avg', epoch_loss_valid/float(len(valid_data)), j/rec_step)
+        writer.add_scalar('data/train_loss', epoch_loss, j)
+        writer.add_scalar('data/valid_loss', epoch_loss_valid, j)
+
+             
+        """
         for name, param in regression_model.named_parameters():
-            writer.add_histogram(name, param.clone().cpu().data.numpy(), j)
-        
-        writer.add_scalar('data/epoch_loss', epoch_loss, j)
-
-
+            if 'weight' in name:
+                writer.add_histogram(name, param.clone().cpu().data.numpy(), j)
+        """
 
     # Validate - test model
     print("Validate trained model...")
-         
     #Number of parameter sampling steps
     n_samples = 1000
     y_preds = [] 
     avg_pred = 0.0
     #Create list of float tensors each containing the evaluation of the test data by a sampled BNN
-
     if debug:
        tst_data, X, Y = create_grid(-12, 12, 50) 
     else:
-       minx = np.amin(x_data.data.numpy())
-       maxx = np.amax(x_data.data.numpy())
+       if CUDA_:
+         minx = np.amin(x_data.cpu().data.numpy())
+         maxx = np.amax(x_data.cpu().data.numpy())
+       else:
+         minx = np.amin(x_data.data.numpy())
+         maxx = np.amax(x_data.data.numpy())
        tst_data, X, Y = create_grid(minx-0.001,maxx+0.001, 50)
+
+    if CUDA_:
+                 tst_data = Variable(torch.Tensor(tst_data)).cuda()
+
 
     avg_pred = []
     for i in range(n_samples):
     # guide does not require the data, get "samplepredictions" as in example
         sampled_reg_model = guide(None)
         if debug:
-           y_preds.append(sampled_reg_model(Variable(torch.Tensor(tst_data))).data.numpy())            
+            y_preds.append(sampled_reg_model(Variable(torch.Tensor(tst_data))).data.numpy())            
         else:
-           y_preds.append(sampled_reg_model(x_data).data.numpy())
-           
-        avg_pred.append(sampled_reg_model(Variable(torch.Tensor(tst_data))).data.numpy())
-    
+           if CUDA_:
+              y_preds.append(sampled_reg_model(x_data).cpu().data.numpy())
+              avg_pred.append(sampled_reg_model(tst_data).cpu().data.numpy())
+
+           else:
+              y_preds.append(sampled_reg_model(x_data).data.numpy())
+              avg_pred.append(sampled_reg_model(Variable(torch.Tensor(tst_data))).data.numpy())
+
+     
     y_pred_np = np.asarray(y_preds)      
     avg_pred_np = np.asarray(avg_pred)
     """    
@@ -316,9 +333,12 @@ def main(args,data,test_data,softplus,regression_model,feature_num,N,debug=True)
     for i in xrange(len(x_data)):
           prob_distr_perPoint.append(np.sum(y_pred_np[:,i,:],axis=0)/float(n_samples)) # get avg of logistic output or avg of argmax?
     # Use majority_class to get accuracy on test data    
-    #majority_class = np.argmax(prob_distr_perPoint,axis=1)
-    
-    #print("Prediction accuracy on test set is",len(np.where(majority_class==np.argmax(y_data.data.numpy(),axis=1))[0])/float(len(majority_class))*100,"%")
+    majority_class = np.argmax(prob_distr_perPoint,axis=1)
+    if CUDA_:
+       accuracy = len(np.where(majority_class==np.argmax(y_data.cpu().data.numpy(),axis=1))[0])/float(len(majority_class))*100    
+    else:
+       accuracy = len(np.where(majority_class==np.argmax(y_data.data.numpy(),axis=1))[0])/float(len(majority_class))*100
+    print("Prediction accuracy on test set is {}".format(accuracy,"%"))
     """
     base_pred = np.argmax(sampled_reg_model(Variable(torch.Tensor(tst_data))).data.numpy(),axis=1)
 
@@ -333,7 +353,7 @@ def main(args,data,test_data,softplus,regression_model,feature_num,N,debug=True)
     writer.close()
 
 
-def initialize(filename_train,filename_test,feature_num,debug=False):
+def initialize(filename_train,filename_valid,filename_test,feature_num,debug=False):
 
    data = []
    with open(filename_train,'rb') as f:
@@ -343,6 +363,9 @@ def initialize(filename_train,filename_test,feature_num,debug=False):
         a = torch.load(f)[:,0:6]
         data = Variable(torch.Tensor(a))
 
+   valid_data = []
+   with open(filename_valid,'rb') as f: 
+        valid_data = Variable(torch.Tensor(torch.load(f))) 
    test_data = []
    with open(filename_test,'rb') as f: 
         test_data = Variable(torch.Tensor(torch.load(f))) 
@@ -359,7 +382,7 @@ def initialize(filename_train,filename_test,feature_num,debug=False):
       data = Variable(torch.Tensor(data1))
 
 
-   return data,test_data,N,hidden_nodes,output_nodes,softplus,regression_model
+   return data,valid_data,test_data,N,hidden_nodes,output_nodes,softplus,regression_model
 
 
 
@@ -369,11 +392,12 @@ if __name__ == '__main__':
     xs = None    
     ys = None
     filename_train = '../data/Wall/train_data_2sensors_logits.pt'
-    filename_test =  '../data/Wall/test_data_2sensors_1hot_scaled.pt'
+    filename_valid =  '../data/Wall/valid_data_2sensors_1hot_scaled_70pc.pt'
+    filename_test =  '../data/Wall/test_data_2sensors_1hot_scaled_30pc.pt'
 
     # Currently no CUDA on debug mode
     debug = False
-    data,test_data,N,hidden_nodes,output_nodes,softplus,regression_model = initialize(filename_train,filename_test,feature_num,debug)
+    data,valid_data,test_data,N,hidden_nodes,output_nodes,softplus,regression_model = initialize(filename_train,filename_valid,filename_test,feature_num,debug)
 
     parser = argparse.ArgumentParser(description="parse args")
     parser.add_argument('-n', '--num-epochs', default=1000, type=int)
@@ -381,4 +405,4 @@ if __name__ == '__main__':
     parser.add_argument('--cuda', action='store_true')
     args = parser.parse_args()
 
-    main(args,data,test_data,softplus,regression_model,feature_num,N,debug)
+    main(args,data,valid_data,test_data,softplus,regression_model,feature_num,N,debug)

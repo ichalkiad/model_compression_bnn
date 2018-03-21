@@ -11,12 +11,16 @@ from pyro.infer import SVI
 from pyro.optim import Adam, SGD
 import cPickle
 from tensorboardX import SummaryWriter
+import json
+import time
+import datetime
+from collections import defaultdict
 
 from debug_bnn import wdecay, create_dataset, create_grid
 from debug_visualisation import visualise_and_debug
 
 
-hidden_nodes  = 10000
+hidden_nodes  = 1000
 """
 hidden_nodes2 = 100000
 hidden_nodes3 = 100000
@@ -25,6 +29,37 @@ output_nodes  = 4
 feature_num   = 2
 softplus      = nn.Softplus()
 p             = feature_num
+learning_rate = 0.01
+num_particles = 2
+rec_step = 100
+
+log = dict()
+gradient_norms = defaultdict(list)
+
+
+def custom_step(svi,data,cuda,epoch,rec_step):
+#Custom step() for monitoring gradients
+
+    epoch_loss = svi.loss_and_grads(svi.model, svi.guide, data)
+    if epoch % rec_step == 0:
+        for name, value in pyro.get_param_store().named_parameters():
+            if "weight" in name:
+               if cuda:
+                  value.register_hook(lambda g, name=name: gradient_norms[name].append(g.norm().cpu().data.numpy()[0]))
+               else:
+                  value.register_hook(lambda g, name=name: gradient_norms[name].append(g.norm().data.numpy()[0]))
+
+    # get active params
+    params = pyro.get_param_store().get_active_params()
+    # actually perform gradient steps
+    # torch.optim objects gets instantiated for any params that haven't been seen yet
+    svi.optim(params)
+    # zero gradients
+    pyro.util.zero_grads(params)
+    # mark parameters in the param store as inactive
+    pyro.get_param_store().mark_params_inactive(params)
+
+    return epoch_loss
 
 
 # NN 
@@ -221,10 +256,10 @@ def get_batch_indices(N, batch_size):
     return all_batches
 
 
-def main(args,data,valid_data,test_data,softplus,regression_model,feature_num,N,debug=True):
+def main(args,data,valid_data,test_data,softplus,regression_model,feature_num,N,debug=True,logdir='/tmp/runs_icha/',point_pdf_file='/tmp/PredictionPDF.pt'):
 
     #Initialize summary writer for Tensorboard
-    writer = SummaryWriter('/tmp/runs_icha/')
+    writer = SummaryWriter(logdir)
 
     x_data, y_data = test_data[:,0:feature_num], test_data[:,feature_num:feature_num+4] #feature_num+4 : change if not 1-hot
 
@@ -242,14 +277,19 @@ def main(args,data,valid_data,test_data,softplus,regression_model,feature_num,N,
     writer.add_graph(regression_model, data[:, 0:feature_num], verbose=True)
 
     # instantiate optim and inference objects
-    optim = Adam({"lr":0.01})
-    svi = SVI(model, guide, optim, loss="ELBO", num_particles=50)
-    rec_step = 100
+    optim = Adam({"lr":learning_rate})
+    svi = SVI(model, guide, optim, loss="ELBO", num_particles=num_particles)
     
+    log["epochs"] = args.num_epochs
+    log["batch_size"] = args.batch_size
+    log["lr"] = learning_rate
+    log["num_particles"] = num_particles
+
+ 
     for j in range(args.num_epochs):
         if args.batch_size == N:
             # use the entire data set
-            epoch_loss = svi.step(data)
+            epoch_loss = custom_step(svi,data,args.cuda,j,rec_step)
         else:
             # mini batch
             epoch_loss = 0.0
@@ -261,25 +301,35 @@ def main(args,data,valid_data,test_data,softplus,regression_model,feature_num,N,
             for ix, batch_start in enumerate(all_batches[:-1]):
                 batch_end = all_batches[ix + 1]
                 batch_data = data[batch_start: batch_end]
-                epoch_loss += svi.step(batch_data)
+                epoch_loss += custom_step(svi,batch_data,args.cuda,j,rec_step)
             
         epoch_loss_valid = svi.evaluate_loss(valid_data)   
-
+ 
         if j % rec_step == 0:
             print("Training set: epoch avg loss {}".format(epoch_loss/float(N)))
             writer.add_scalar('data/train_loss_avg', epoch_loss/float(N), j/rec_step)
             print("Validation set: epoch avg loss {}".format(epoch_loss_valid/len(valid_data)))
             writer.add_scalar('data/valid_loss_avg', epoch_loss_valid/float(len(valid_data)), j/rec_step)
+            #Monitor gradient norms
+            for name, grad_norms in gradient_norms.items():
+                writer.add_scalar("gradients/"+name, np.average(grad_norms), j)
+        #Clear dict for next epoch
+        gradient_norms.clear() 
+
         writer.add_scalar('data/train_loss', epoch_loss, j)
         writer.add_scalar('data/valid_loss', epoch_loss_valid, j)
 
-             
+
         """
+        #Monitor weights and biases
+
         for name, param in regression_model.named_parameters():
             if 'weight' in name:
                 writer.add_histogram(name, param.clone().cpu().data.numpy(), j)
         """
 
+
+    
     # Validate - test model
     print("Validate trained model...")
     #Number of parameter sampling steps
@@ -346,7 +396,7 @@ def main(args,data,valid_data,test_data,softplus,regression_model,feature_num,N,
     visualise_and_debug(np.argmax(y_pred_np,axis=2),majority_class_tst,base_pred,data,n_samples,X,Y,predictionPDF='/tmp/PredictionPDF.pt',PDFcenters='/tmp/PDFCenters.pt',debug=debug)    
     """
 
-    with open('/tmp/PredictionPDF.pt','wb') as f:
+    with open(point_pdf_file,'wb') as f:
          torch.save(prob_distr_perPoint,f)
 
     
@@ -388,13 +438,18 @@ def initialize(filename_train,filename_valid,filename_test,feature_num,debug=Fal
 
 if __name__ == '__main__':
     CUDA_ = False
-  
+
+    ts = time.time()
+    st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
+    log["timestamp"] = st
+    log["hidden_nodes"] = hidden_nodes
     xs = None    
     ys = None
     filename_train = '../data/Wall/train_data_2sensors_logits.pt'
     filename_valid =  '../data/Wall/valid_data_2sensors_1hot_scaled_70pc.pt'
     filename_test =  '../data/Wall/test_data_2sensors_1hot_scaled_30pc.pt'
-
+    logdir = './runs_icha/'
+    
     # Currently no CUDA on debug mode
     debug = False
     data,valid_data,test_data,N,hidden_nodes,output_nodes,softplus,regression_model = initialize(filename_train,filename_valid,filename_test,feature_num,debug)
@@ -405,4 +460,6 @@ if __name__ == '__main__':
     parser.add_argument('--cuda', action='store_true')
     args = parser.parse_args()
 
-    main(args,data,valid_data,test_data,softplus,regression_model,feature_num,N,debug)
+    main(args,data,valid_data,test_data,softplus,regression_model,feature_num,N,debug,logdir,point_pdf_file="./"+st+"_point_PDF.pt")
+    with open("./log_"+st+".json", 'w') as f:
+         json.dump(log, f)

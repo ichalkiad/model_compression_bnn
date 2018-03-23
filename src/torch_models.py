@@ -28,7 +28,7 @@ class CustomModel():
 
     def __init__(self, build_info, CUDA=True):
 
-        previous_units = 24
+        previous_units = 2
         self.model = nn.Sequential()
         self.model.add_module('flatten', Flatten())
         for i, layer_info in enumerate(build_info['layers']):
@@ -144,8 +144,7 @@ class CustomModel():
             target = target.type('torch.LongTensor')
             if self.cuda:
                 data, target = data.cuda(), target.cuda()
-            with torch.no_grad():
-                 data = Variable(data)
+            data = Variable(data, requires_grad=False)
             target = Variable(target)
             output = self.model(data)
             #COMMENT OUT FOR LOGITS - NOT

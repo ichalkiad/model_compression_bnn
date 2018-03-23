@@ -15,13 +15,13 @@ class WallNavDataset(data.Dataset):
                 on a sample.
         """
         self.train = train
-        self.features_no = 24
+        self.features_no = 2
 
         if self.train:
-            self.torch_file = 'train_data_24sensors.pt'
+            self.torch_file = 'train_data_2sensors.pt'
             self.train_data = load(os.path.join(root_dir, self.torch_file),map_location)
         else:
-            self.torch_file = 'test_data_24sensors.pt'
+            self.torch_file = 'test_data_2sensors.pt'
             self.test_data = load(os.path.join(root_dir, self.torch_file),map_location)
 
         self.root_dir = root_dir

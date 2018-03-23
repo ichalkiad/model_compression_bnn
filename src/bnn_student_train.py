@@ -20,17 +20,19 @@ from debug_bnn import wdecay, create_dataset, create_grid
 from debug_visualisation import visualise_and_debug
 
 
-hidden_nodes  = 1000
+hidden_nodes  = 6
+
 """
-hidden_nodes2 = 100000
+hidden_nodes2 = 1500
+
 hidden_nodes3 = 100000
 """
 output_nodes  = 4
 feature_num   = 2
 softplus      = nn.Softplus()
 p             = feature_num
-learning_rate = 0.01
-num_particles = 2
+learning_rate = 0.05
+num_particles = 1
 rec_step = 100
 
 log = dict()
@@ -67,24 +69,24 @@ class RegressionModel(nn.Module):
     def __init__(self, p, hidden_nodes,output_nodes):
         super(RegressionModel, self).__init__()
         self.hidden_nodes = hidden_nodes
+#        self.hidden_nodes2 = hidden_nodes2
         """
-        self.hidden_nodes2 = hidden_nodes2
         self.hidden_nodes3 = hidden_nodes3
         """
         self.output_nodes = output_nodes
         self.fc1 = nn.Linear(p, self.hidden_nodes)
+#        self.fc2 = nn.Linear(self.hidden_nodes, self.hidden_nodes2)
         """
-        self.fc2 = nn.Linear(self.hidden_nodes, self.hidden_nodes2)
         self.fc3 = nn.Linear(self.hidden_nodes2, self.hidden_nodes3)
         """
         self.fc4 = nn.Linear(self.hidden_nodes, self.output_nodes)
 
     def forward(self, x):
-        x = F.relu(self.fc1(x))
+        x = self.fc1(x)
 #        x = F.relu(self.fc2(x))
 #        x = F.relu(self.fc3(x))
         x = F.sigmoid(self.fc4(x))
-#        x = F.log_softmax(x,dim=-1) 
+        x = F.log_softmax(x,dim=-1) 
 
         return x
 
@@ -102,7 +104,7 @@ def model(data):
         sigma2 = Variable(torch.ones(hidden_nodes2, hidden_nodes)).cuda()
         bias_mu2 = Variable(torch.zeros(1, hidden_nodes2)).cuda()
         bias_sigma2 = Variable(torch.ones(1, hidden_nodes2)).cuda()
-
+        
         mu3 = Variable(torch.zeros(hidden_nodes3, hidden_nodes2)).cuda()
         sigma3 = Variable(torch.ones(hidden_nodes3, hidden_nodes2)).cuda()
         bias_mu3 = Variable(torch.zeros(1, hidden_nodes3)).cuda()
@@ -122,7 +124,7 @@ def model(data):
         sigma2 = Variable(torch.ones(hidden_nodes2, hidden_nodes))
         bias_mu2 = Variable(torch.zeros(1, hidden_nodes2))
         bias_sigma2 = Variable(torch.ones(1, hidden_nodes2))
-
+        
         mu3 = Variable(torch.zeros(hidden_nodes3, hidden_nodes2))
         sigma3 = Variable(torch.ones(hidden_nodes3, hidden_nodes2))
         bias_mu3 = Variable(torch.zeros(1, hidden_nodes3))
@@ -137,6 +139,7 @@ def model(data):
     w_prior1, b_prior1 = Normal(mu1, sigma1), Normal(bias_mu1, bias_sigma1)
     """
     w_prior2, b_prior2 = Normal(mu2, sigma2), Normal(bias_mu2, bias_sigma2)
+    
     w_prior3, b_prior3 = Normal(mu3, sigma3), Normal(bias_mu3, bias_sigma3)
     """
     w_prior4, b_prior4 = Normal(mu4, sigma4), Normal(bias_mu4, bias_sigma4)
@@ -169,7 +172,7 @@ def guide(data):
         w_log_sig2 = Variable((-3.0 * torch.ones(hidden_nodes2, hidden_nodes) + 0.05 * torch.randn(hidden_nodes2, hidden_nodes)).cuda(), requires_grad=True)
         b_mu2 = Variable(torch.randn(1, hidden_nodes2).cuda(), requires_grad=True)
         b_log_sig2 = Variable((-3.0 * torch.ones(1, hidden_nodes2) + 0.05 * torch.randn(1, hidden_nodes2)).cuda(), requires_grad=True)
-
+        
         w_mu3 = Variable(torch.randn(hidden_nodes3, hidden_nodes2).cuda(), requires_grad=True)
         w_log_sig3 = Variable((-3.0 * torch.ones(hidden_nodes3, hidden_nodes2) + 0.05 * torch.randn(hidden_nodes3, hidden_nodes2)).cuda(), requires_grad=True)
         b_mu3 = Variable(torch.randn(1, hidden_nodes3).cuda(), requires_grad=True)
@@ -190,7 +193,7 @@ def guide(data):
         w_log_sig2 = Variable((-3.0 * torch.ones(hidden_nodes2, hidden_nodes) + 0.05 * torch.randn(hidden_nodes2, hidden_nodes)), requires_grad=True)
         b_mu2 = Variable(torch.randn(1, hidden_nodes2), requires_grad=True)
         b_log_sig2 = Variable((-3.0 * torch.ones(1, hidden_nodes2) + 0.05 * torch.randn(1, hidden_nodes2)), requires_grad=True)
-
+        
         w_mu3 = Variable(torch.randn(hidden_nodes3, hidden_nodes2), requires_grad=True)
         w_log_sig3 = Variable((-3.0 * torch.ones(hidden_nodes3, hidden_nodes2) + 0.05 * torch.randn(hidden_nodes3, hidden_nodes2)), requires_grad=True)
         b_mu3 = Variable(torch.randn(1, hidden_nodes3), requires_grad=True)
@@ -219,7 +222,7 @@ def guide(data):
     # gaussian guide distributions for w and b
     w_dist2 = Normal(mw_param2, sw_param2)
     b_dist2 = Normal(mb_param2, sb_param2)
-
+    
     # register learnable params in the param store
     mw_param3 = pyro.param("guide_mean_weight3", w_mu3)
     sw_param3 = softplus(pyro.param("guide_log_sigma_weight3", w_log_sig3))
@@ -304,7 +307,7 @@ def main(args,data,valid_data,test_data,softplus,regression_model,feature_num,N,
                 epoch_loss += custom_step(svi,batch_data,args.cuda,j,rec_step)
             
         epoch_loss_valid = svi.evaluate_loss(valid_data)   
- 
+        
         if j % rec_step == 0:
             print("Training set: epoch avg loss {}".format(epoch_loss/float(N)))
             writer.add_scalar('data/train_loss_avg', epoch_loss/float(N), j/rec_step)
@@ -323,11 +326,11 @@ def main(args,data,valid_data,test_data,softplus,regression_model,feature_num,N,
         """
         #Monitor weights and biases
 
-        for name, param in regression_model.named_parameters():
-            if 'weight' in name:
-                writer.add_histogram(name, param.clone().cpu().data.numpy(), j)
+        #for name, param in regression_model.named_parameters():
+        #    if 'weight' in name:
+        #        writer.add_histogram(name, param.clone().cpu().data.numpy(), j)
+        
         """
-
 
     
     # Validate - test model
@@ -362,13 +365,13 @@ def main(args,data,valid_data,test_data,softplus,regression_model,feature_num,N,
            if CUDA_:
               y_preds.append(sampled_reg_model(x_data).cpu().data.numpy())
               avg_pred.append(sampled_reg_model(tst_data).cpu().data.numpy())
-
            else:
               y_preds.append(sampled_reg_model(x_data).data.numpy())
               avg_pred.append(sampled_reg_model(Variable(torch.Tensor(tst_data))).data.numpy())
 
      
     y_pred_np = np.asarray(y_preds)      
+    print(y_pred_np)
     avg_pred_np = np.asarray(avg_pred)
     """    
     # Needed for decision surface visualisation
@@ -445,10 +448,10 @@ if __name__ == '__main__':
     log["hidden_nodes"] = hidden_nodes
     xs = None    
     ys = None
-    filename_train = '../data/Wall/train_data_2sensors_logits.pt'
+    filename_train = '../data/Wall/train_data_2sensors_1hot_scaled_teacherLabels.pt'
     filename_valid =  '../data/Wall/valid_data_2sensors_1hot_scaled_70pc.pt'
     filename_test =  '../data/Wall/test_data_2sensors_1hot_scaled_30pc.pt'
-    logdir = './runs_icha/'
+    logdir = './runs_icha_n/'
     
     # Currently no CUDA on debug mode
     debug = False
@@ -460,6 +463,6 @@ if __name__ == '__main__':
     parser.add_argument('--cuda', action='store_true')
     args = parser.parse_args()
 
-    main(args,data,valid_data,test_data,softplus,regression_model,feature_num,N,debug,logdir,point_pdf_file="./"+st+"_point_PDF.pt")
-    with open("./log_"+st+".json", 'w') as f:
+    main(args,data,valid_data,test_data,softplus,regression_model,feature_num,N,debug,logdir,point_pdf_file="./runs_icha_n/"+st+"_point_PDF.pt")
+    with open("./runs_icha_n/log_"+st+".json", 'w') as f:
          json.dump(log, f)

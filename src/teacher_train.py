@@ -51,8 +51,7 @@ def test(model, test_loader, criterion, CUDA_):
             target = target.type('torch.LongTensor')
             if CUDA_:
                 data, target = data.cuda(), target.cuda()
-            with torch.no_grad():
-                data = Variable(data)
+            data = Variable(data,requires_grad=False)
             target = Variable(target)
             output = model(data)
             test_loss += criterion(output, target).data[0]
@@ -74,21 +73,21 @@ test_loader = utils.data.DataLoader(WallNavDataset.WallNavDataset(root_dir='../d
 class Net(nn.Module):
     def __init__(self):
         super(Net, self).__init__()
-        self.input_features = 24
-        self.fc1 = nn.Linear(self.input_features, 72)
-        self.fc2 = nn.Linear(72, 107)
-        self.fc3 = nn.Linear(107,108)
-        self.fc4 = nn.Linear(108,124)
-        self.fc5 = nn.Linear(124,4)
+        self.input_features = 2#24
+        self.fc1 = nn.Linear(self.input_features,6) #, 72)
+        self.fc2 = nn.Linear(6,4)#(72, 107)
+        #self.fc3 = nn.Linear(107,108)
+        #self.fc4 = nn.Linear(108,124)
+        #self.fc5 = nn.Linear(124,4)
 
 
     
     def forward(self, x):
         x = self.fc1(x)
         x = F.sigmoid(self.fc2(x))
-        x = self.fc3(x)
-        x = self.fc4(x)
-        x = self.fc5(x)
+        #x = self.fc3(x)
+        #x = self.fc4(x)
+        #x = self.fc5(x)
         x = F.log_softmax(x,dim=-1)
         
         return x
@@ -112,7 +111,7 @@ if CUDA_:
 criterion = nn.NLLLoss()
 optimizer = optim.Adagrad(model.parameters(), lr=0.182)
 
-for epoch in range(10000):  # loop over the dataset multiple times
+for epoch in range(1000):  # loop over the dataset multiple times
     train(model, CUDA_, train_loader, optimizer, criterion)
 
 print('Finished Training')
@@ -128,18 +127,20 @@ for data, target in train_loader:
             target = target.type('torch.LongTensor')
             if CUDA_:
                 data, target = data.cuda(), target.cuda()
-            with torch.no_grad():
-                data = Variable(data)
+            data = Variable(data,requires_grad=False)
             target = Variable(target)
-            output = model.get_logits(data)
+            output = model.forward(data)
+            #output = model.get_logits(data)
             d = (data.data).cpu().numpy()
-            o = (output.data).cpu().numpy()
-            t = (target.data).cpu().numpy()
-            s = np.concatenate((d,o,np.reshape(t,(len(t),1))),axis=1)            
+            o1 = np.argmax((output.data).cpu().numpy(),axis=1)
+            #t = (target.data).cpu().numpy()
+            o = np.zeros((len(data), 4))
+            o[np.arange(len(data)), o1] = 1
+            s = np.concatenate((d,o),axis=1)    #((d,o,np.reshape(t,(len(t),1))),axis=1)            
             save_data.append(s)
 
 k = np.concatenate(save_data,axis=0)
-with open('../data/Wall/train_data_24sensors_logits.pt','wb') as f:
+with open('../data/Wall/train_data_2sensors_teacherLabels.pt','wb') as f:
      torch.save(k,f)
 
 save_data = []
@@ -148,18 +149,21 @@ for data, target in test_loader:
             target = target.type('torch.LongTensor')
             if CUDA_:
                 data, target = data.cuda(), target.cuda()
-            with torch.no_grad():
-                data = Variable(data)
+            data = Variable(data,requires_grad=False)
             target = Variable(target)
-            output = model.get_logits(data)
+            output = model.forward(data)
+            #output = model.get_logits(data)
             d = (data.data).cpu().numpy()
-            o = (output.data).cpu().numpy()
-            t = (target.data).cpu().numpy()
-            s = np.concatenate((d,o,np.reshape(t,(len(t),1))),axis=1)            
+            o1 = np.argmax((output.data).cpu().numpy(),axis=1)
+            #t = (target.data).cpu().numpy()
+            o = np.zeros((len(data), 4))
+            o[np.arange(len(data)), o1] = 1
+            s = np.concatenate((d,o),axis=1)  #((d,o,np.reshape(t,(len(t),1))),axis=1)            
             save_data.append(s)
 
 k = np.concatenate(save_data,axis=0)
-with open('../data/Wall/test_data_24sensors_logits.pt','wb') as f:
+with open('../data/Wall/test_data_2sensors_teacherLabels.pt','wb') as f:
      torch.save(k,f)
+
 
 

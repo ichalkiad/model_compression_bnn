@@ -20,7 +20,7 @@ from debug_bnn import wdecay, create_dataset, create_grid
 from debug_visualisation import visualise_and_debug
 
 
-hidden_nodes  = 6
+hidden_nodes  = 7
 
 """
 hidden_nodes2 = 1500
@@ -28,12 +28,12 @@ hidden_nodes2 = 1500
 hidden_nodes3 = 100000
 """
 output_nodes  = 4
-feature_num   = 2
+feature_num   = 24
 softplus      = nn.Softplus()
 p             = feature_num
-learning_rate = 0.05
+learning_rate = 0.1
 num_particles = 1
-rec_step = 100
+rec_step = 1000
 
 log = dict()
 gradient_norms = defaultdict(list)
@@ -86,7 +86,7 @@ class RegressionModel(nn.Module):
 #        x = F.relu(self.fc2(x))
 #        x = F.relu(self.fc3(x))
         x = F.sigmoid(self.fc4(x))
-        x = F.log_softmax(x,dim=-1) 
+#        x = F.log_softmax(x,dim=-1) 
 
         return x
 
@@ -288,7 +288,6 @@ def main(args,data,valid_data,test_data,softplus,regression_model,feature_num,N,
     log["lr"] = learning_rate
     log["num_particles"] = num_particles
 
- 
     for j in range(args.num_epochs):
         if args.batch_size == N:
             # use the entire data set
@@ -307,7 +306,6 @@ def main(args,data,valid_data,test_data,softplus,regression_model,feature_num,N,
                 epoch_loss += custom_step(svi,batch_data,args.cuda,j,rec_step)
             
         epoch_loss_valid = svi.evaluate_loss(valid_data)   
-        
         if j % rec_step == 0:
             print("Training set: epoch avg loss {}".format(epoch_loss/float(N)))
             writer.add_scalar('data/train_loss_avg', epoch_loss/float(N), j/rec_step)
@@ -316,6 +314,8 @@ def main(args,data,valid_data,test_data,softplus,regression_model,feature_num,N,
             #Monitor gradient norms
             for name, grad_norms in gradient_norms.items():
                 writer.add_scalar("gradients/"+name, np.average(grad_norms), j)
+        
+        
         #Clear dict for next epoch
         gradient_norms.clear() 
 
@@ -352,7 +352,7 @@ def main(args,data,valid_data,test_data,softplus,regression_model,feature_num,N,
        tst_data, X, Y = create_grid(minx-0.001,maxx+0.001, 50)
 
     if CUDA_:
-                 tst_data = Variable(torch.Tensor(tst_data)).cuda()
+       tst_data = Variable(torch.Tensor(tst_data)).cuda()
 
 
     avg_pred = []
@@ -364,15 +364,14 @@ def main(args,data,valid_data,test_data,softplus,regression_model,feature_num,N,
         else:
            if CUDA_:
               y_preds.append(sampled_reg_model(x_data).cpu().data.numpy())
-              avg_pred.append(sampled_reg_model(tst_data).cpu().data.numpy())
+              #avg_pred.append(sampled_reg_model(tst_data).cpu().data.numpy())
            else:
               y_preds.append(sampled_reg_model(x_data).data.numpy())
               avg_pred.append(sampled_reg_model(Variable(torch.Tensor(tst_data))).data.numpy())
 
      
     y_pred_np = np.asarray(y_preds)      
-    print(y_pred_np)
-    avg_pred_np = np.asarray(avg_pred)
+    #avg_pred_np = np.asarray(avg_pred)
     """    
     # Needed for decision surface visualisation
     ap_tst = []
@@ -413,7 +412,7 @@ def initialize(filename_train,filename_valid,filename_test,feature_num,debug=Fal
         """
         logits train
         """
-        a = torch.load(f)[:,0:6]
+        a = torch.load(f)[:,0:28] 
         data = Variable(torch.Tensor(a))
 
    valid_data = []
@@ -422,7 +421,6 @@ def initialize(filename_train,filename_valid,filename_test,feature_num,debug=Fal
    test_data = []
    with open(filename_test,'rb') as f: 
         test_data = Variable(torch.Tensor(torch.load(f))) 
-
      
    N = len(data)  # size of data
    regression_model = RegressionModel(feature_num,hidden_nodes,output_nodes)
@@ -448,10 +446,10 @@ if __name__ == '__main__':
     log["hidden_nodes"] = hidden_nodes
     xs = None    
     ys = None
-    filename_train = '../data/Wall/train_data_2sensors_1hot_scaled_teacherLabels.pt'
-    filename_valid =  '../data/Wall/valid_data_2sensors_1hot_scaled_70pc.pt'
-    filename_test =  '../data/Wall/test_data_2sensors_1hot_scaled_30pc.pt'
-    logdir = './runs_icha_n/'
+    filename_train = '../data/Wall/train_data_24sensors_1hot_scaled_teacherLabels.pt'
+    filename_valid =  '../data/Wall/valid_data_24sensors_1hot_scaled_70pc.pt'
+    filename_test =  '../data/Wall/test_data_24sensors_1hot_scaled_30pc.pt'
+    logdir = './runs_icha_n24/'
     
     # Currently no CUDA on debug mode
     debug = False
@@ -463,6 +461,6 @@ if __name__ == '__main__':
     parser.add_argument('--cuda', action='store_true')
     args = parser.parse_args()
 
-    main(args,data,valid_data,test_data,softplus,regression_model,feature_num,N,debug,logdir,point_pdf_file="./runs_icha_n/"+st+"_point_PDF.pt")
-    with open("./runs_icha_n/log_"+st+".json", 'w') as f:
+    main(args,data,valid_data,test_data,softplus,regression_model,feature_num,N,debug,logdir,point_pdf_file="./runs_icha_n24/"+st+"_point_PDF.pt")
+    with open("./runs_icha_n24/log_"+st+".json", 'w') as f:
          json.dump(log, f)

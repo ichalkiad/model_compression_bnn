@@ -4,6 +4,7 @@ from keras import utils as k_np
 from sklearn import preprocessing
 import random
 
+"""
 #24 sensors
 with open('train_data_24sensors.pt','rb') as f:
     data = torch.load(f)
@@ -100,3 +101,6 @@ data_save[:,0:2] = data_val_scaled
 data_save[:,2:6] = k_np.to_categorical(data[val_idx,2],4)
 with open('valid_data_2sensors_1hot_scaled_70pc.pt','wb') as f:
     torch.save(data_save,f)
+"""
+
+

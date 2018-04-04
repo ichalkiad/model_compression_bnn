@@ -6,7 +6,7 @@ import cPickle
 class WallNavDataset(data.Dataset):
     """Wall-Following Navigation dataset."""
 
-    def __init__(self, train=True, root_dir='../data', map_location='cpu',transform=None):
+    def __init__(self, train=True, sensor_dimensions=2, root_dir='../data', map_location='cpu',transform=None):
         """
         Args:
             torch_file (string): Path to the torch file with input-labels pairs.
@@ -15,13 +15,13 @@ class WallNavDataset(data.Dataset):
                 on a sample.
         """
         self.train = train
-        self.features_no = 2
+        self.features_no = sensor_dimensions
 
         if self.train:
-            self.torch_file = 'train_data_2sensors.pt'
+            self.torch_file = "train_data_"+str(self.features_no)+"sensors.pt"
             self.train_data = load(os.path.join(root_dir, self.torch_file),map_location)
         else:
-            self.torch_file = 'test_data_2sensors.pt'
+            self.torch_file = "test_data_"+str(self.features_no)+"sensors.pt"
             self.test_data = load(os.path.join(root_dir, self.torch_file),map_location)
 
         self.root_dir = root_dir

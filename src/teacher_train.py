@@ -7,7 +7,56 @@ import torch.utils as utils
 import numpy as np
 import torch
 import cPickle
-CUDA_ = True
+CUDA_ = False
+
+
+def get_teacher_dataset(model,train_loader,test_loader,out_train_filename,out_test_filename):
+
+        save_data = []
+        for data, target in train_loader:
+            data = data.type('torch.FloatTensor')
+            target = target.type('torch.LongTensor')
+            if CUDA_:
+                data, target = data.cuda(), target.cuda()
+            data = Variable(data,requires_grad=False)
+            target = Variable(target)
+            output = model.forward(data)
+            #output = model.get_logits(data)
+            d = (data.data).cpu().numpy()
+            o1 = np.argmax((output.data).cpu().numpy(),axis=1)
+            #t = (target.data).cpu().numpy()
+            o = np.zeros((len(data), 4))
+            o[np.arange(len(data)), o1] = 1
+            s = np.concatenate((d,o),axis=1)    #((d,o,np.reshape(t,(len(t),1))),axis=1)            
+            save_data.append(s)
+
+        k = np.concatenate(save_data,axis=0)
+        with open(out_train_filename,'wb') as f:
+                torch.save(k,f)
+
+        save_data = []
+        for data, target in test_loader:
+            data = data.type('torch.FloatTensor')
+            target = target.type('torch.LongTensor')
+            if CUDA_:
+                data, target = data.cuda(), target.cuda()
+            data = Variable(data,requires_grad=False)
+            target = Variable(target)
+            output = model.forward(data)
+            #output = model.get_logits(data)
+            d = (data.data).cpu().numpy()
+            o1 = np.argmax((output.data).cpu().numpy(),axis=1)
+            #t = (target.data).cpu().numpy()
+            o = np.zeros((len(data), 4))
+            o[np.arange(len(data)), o1] = 1
+            s = np.concatenate((d,o),axis=1)  #((d,o,np.reshape(t,(len(t),1))),axis=1)            
+            save_data.append(s)
+
+        k = np.concatenate(save_data,axis=0)
+        with open(out_test_filename,'wb') as f:
+                torch.save(k,f)
+
+        
 
 
 
@@ -65,8 +114,9 @@ def test(model, test_loader, criterion, CUDA_):
 
 
 batch_size = 64
-train_loader = utils.data.DataLoader(WallNavDataset.WallNavDataset(root_dir='../data/Wall', train=True),batch_size=batch_size, shuffle=True)
-test_loader = utils.data.DataLoader(WallNavDataset.WallNavDataset(root_dir='../data/Wall', train=False),batch_size=batch_size, shuffle=True)
+sensor_dimensions = 2
+train_loader = utils.data.DataLoader(WallNavDataset.WallNavDataset(root_dir='../data/Wall', train=True,sensor_dimensions=sensor_dimensions),batch_size=batch_size, shuffle=True)
+test_loader = utils.data.DataLoader(WallNavDataset.WallNavDataset(root_dir='../data/Wall', train=False,sensor_dimensions=sensor_dimensions),batch_size=batch_size, shuffle=True)
 
 
 #Set up basic network
@@ -101,7 +151,7 @@ class Net(nn.Module):
 
         return x
 
-
+"""
 
 model = Net()
 if CUDA_:
@@ -167,3 +217,5 @@ with open('../data/Wall/test_data_2sensors_teacherLabels.pt','wb') as f:
 
 
 
+"""
+     

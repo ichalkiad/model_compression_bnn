@@ -52,12 +52,12 @@ def get_teacher_dataset(model,train_loader,test_loader,out_train_filename,out_te
             s = np.concatenate((d,o),axis=1)  #((d,o,np.reshape(t,(len(t),1))),axis=1)            
             save_data.append(s)
 
-        k = np.concatenate(save_data,axis=0)
+        k2 = np.concatenate(save_data,axis=0)
         with open(out_test_filename,'wb') as f:
                 torch.save(k,f)
 
-        
 
+        return k,k2  #train,test
 
 
 def train(model, CUDA_, train_loader, optimizer, criterion):

@@ -1,4 +1,4 @@
-from sacred.observers import FileStorageObserver
+from sacred.observers import FileStorageObserver,MongoObserver
 from sacred import Experiment
 import sys
 import torch.optim as optim
@@ -94,9 +94,14 @@ ex = Experiment('BayesianCompression')
 @ex.config
 def config():
     
-    print("Using local file storage for logging")        
-    ex.observers.append(FileStorageObserver.create('SacredRunLog'))
-    
+    db = ""
+    if db=="mongo":
+        print("Using mongodb for logging")
+        ex.observers.append(MongoObserver.create())
+    elif db=="file":
+        print("Using local file storage for logging")        
+        ex.observers.append(FileStorageObserver.create('SacredRunLog'))
+   
 
     ID = 0 
 
@@ -123,11 +128,12 @@ def config():
         print("Not implemented optimizer - exit")
         sys.exit(1)
     epochs = 1500
+    """
     net_arch = OrderedDict()
     for idx, module in enumerate(teacher_model.cpu().named_modules()):
         net_arch[idx] = module
         break
-   
+    """
     log_directory = "/tmp/bayesian_compression_2sensors"+str(ID)+"/"
     if not os.path.exists(log_directory):
         os.makedirs(log_directory)
@@ -143,10 +149,12 @@ def config():
     hidden_nodes_ = 6
     output_nodes_ = 4
     bnn_model_ = BNNModel(sensor_dimensions,hidden_nodes_,output_nodes_)
+    """
     bnn_net_arch = OrderedDict()
     for idx, module in enumerate(bnn_model_.cpu().named_modules()):
         bnn_net_arch[idx] = module
         break
+    """
     bnn_learning_rate = 0.1
     num_particles = 1
     rec_step = 10

@@ -33,19 +33,19 @@ class Net(nn.Module):
     def __init__(self,input_feat):
         super(Net, self).__init__()
         self.input_features = input_feat
-        self.fc1 = nn.Linear(self.input_features,6) #, 72)
-        self.fc2 = nn.Linear(6,4)#(72, 107)
-        #self.fc3 = nn.Linear(107,108)
-        #self.fc4 = nn.Linear(108,124)
-        #self.fc5 = nn.Linear(124,4)
+        self.fc1 = nn.Linear(self.input_features, 72)
+        self.fc2 = nn.Linear(72, 107)
+        self.fc3 = nn.Linear(107,108)
+        self.fc4 = nn.Linear(108,124)
+        self.fc5 = nn.Linear(124,4)
 
     
     def forward(self, x):
         x = self.fc1(x)
         x = F.sigmoid(self.fc2(x))
-        #x = self.fc3(x)
-        #x = self.fc4(x)
-        #x = self.fc5(x)
+        x = self.fc3(x)
+        x = self.fc4(x)
+        x = self.fc5(x)
         x = F.log_softmax(x,dim=-1)
         
         return x
@@ -72,7 +72,7 @@ class BNNModel(nn.Module):
         self.fc4 = nn.Linear(self.hidden_nodes, self.output_nodes)
 
     def forward(self, x):
-        x = self.fc1(x)
+        x = F.sigmoid(self.fc1(x))
 #        x = F.relu(self.fc2(x))
 #        x = F.relu(self.fc3(x))
         x = F.sigmoid(self.fc4(x))
@@ -101,7 +101,7 @@ def config():
     elif db=="file":
         print("Using local file storage for logging")        
         ex.observers.append(FileStorageObserver.create('SacredRunLog'))
-   
+    
 
     ID = 0 
 
@@ -109,12 +109,12 @@ def config():
     Teacher parameters
     """
     batch_size = 64
-    sensor_dimensions = 2
+    sensor_dimensions = 24
     teacher_learning_rate = 0.05
     teacher_model = Net(sensor_dimensions)
-    CUDA = False
+    CUDA = True
     if CUDA:
-        model.cuda()
+        teacher_model.cuda()
     teacher_criterion = "NLLLoss"
     if teacher_criterion=="NLLLoss":
         teacher_criterion = nn.NLLLoss()
@@ -139,16 +139,18 @@ def config():
         os.makedirs(log_directory)
     out_train_filename = log_directory+"train_data_"+str(sensor_dimensions)+"sensors_teacherLabels.pt"
     out_test_filename = log_directory+"test_data_"+str(sensor_dimensions)+"sensors_teacherLabels.pt"
+    out_valid_filename = log_directory+"valid_data_"+str(sensor_dimensions)+"sensors_teacherLabels.pt"
 
 
     """    
     Student parameters
     """
-    bnn_batch_size = 2048
+    bnn_batch_size = 4400
     batch_training = False
     hidden_nodes_ = 6
     output_nodes_ = 4
     bnn_model_ = BNNModel(sensor_dimensions,hidden_nodes_,output_nodes_)
+
     """
     bnn_net_arch = OrderedDict()
     for idx, module in enumerate(bnn_model_.cpu().named_modules()):
@@ -159,15 +161,15 @@ def config():
     num_particles = 1
     rec_step = 10
     bnn_epochs = 1000
-    filename_valid =  "../data/Wall/valid_data_"+str(sensor_dimensions)+"sensors_1hot_scaled_70pc.pt"
-    filename_test =  "../data/Wall/test_data_"+str(sensor_dimensions)+"sensors_1hot_scaled_30pc.pt"
     point_pdf_file = log_directory+str(ID)+"_point_PDF.pt" 
-    parameter_samples_no = 2000
+    parameter_samples_no = 5000
 
-
-
-
-
+    """
+    Scale dataset for bayesian training
+    """
+    scale = True
+    filename_test = "../data/Wall/test_data_"+str(sensor_dimensions)+"sensors.pt"
+    
    
 """
 Bayesian training requisites.
@@ -363,7 +365,7 @@ def guide(data):
 
 
 @ex.automain
-def train_and_compress(batch_size,sensor_dimensions,teacher_criterion,teacher_optimizer,CUDA,teacher_model,epochs,out_train_filename,out_test_filename,bnn_batch_size,bnn_model_,bnn_learning_rate,num_particles,rec_step,bnn_epochs,filename_valid,filename_test,point_pdf_file,log_directory,hidden_nodes_,output_nodes_,parameter_samples_no,batch_training):
+def train_and_compress(batch_size,sensor_dimensions,teacher_criterion,teacher_optimizer,CUDA,teacher_model,epochs,out_train_filename,out_test_filename,out_valid_filename,bnn_batch_size,bnn_model_,bnn_learning_rate,num_particles,rec_step,bnn_epochs,point_pdf_file,log_directory,hidden_nodes_,output_nodes_,parameter_samples_no,batch_training,filename_test,scale):
 
     global feature_num
     feature_num = sensor_dimensions
@@ -397,7 +399,7 @@ def train_and_compress(batch_size,sensor_dimensions,teacher_criterion,teacher_op
     """
     Get teacher data for bayesian compression.
     """
-    train_teacher,test_teacher = get_teacher_dataset(teacher_model,train_loader,test_loader,out_train_filename,out_test_filename)
+    train_teacher,test_teacher,valid_teacher = get_teacher_dataset(sensor_dimensions,CUDA,teacher_model,train_loader,filename_test,out_train_filename,out_test_filename,out_valid_filename,scale=True)
     global N
     N = train_teacher.shape[0]
     if batch_training==False:
@@ -407,15 +409,9 @@ def train_and_compress(batch_size,sensor_dimensions,teacher_criterion,teacher_op
     Bayesian compression.
     """
 
-    """
-    Load validation and test sets.
-    """
-    valid_data = []
-    with open(filename_valid,'rb') as f: 
-        valid_data = Variable(torch.Tensor(torch.load(f))) 
-    test_data = []
-    with open(filename_test,'rb') as f: 
-        test_data = Variable(torch.Tensor(torch.load(f)))  
+    train_data = Variable(torch.Tensor(train_teacher))
+    valid_data = Variable(torch.Tensor(valid_teacher))
+    test_data = Variable(torch.Tensor(test_teacher))
 
 
     """
@@ -424,5 +420,5 @@ def train_and_compress(batch_size,sensor_dimensions,teacher_criterion,teacher_op
     log = dict()
     gradient_norms = defaultdict(list)
 
-    bnn_main(model,guide,custom_step,rec_step,num_particles,log,gradient_norms,CUDA,bnn_epochs,bnn_batch_size, Variable(torch.Tensor(train_teacher)),valid_data,test_data,softplus,bnn_model_,sensor_dimensions,train_teacher.shape[0],debug=False,logdir=log_directory,point_pdf_file=point_pdf_file,learning_rate=bnn_learning_rate,n_samples_=parameter_samples_no)
+    bnn_main(model,guide,custom_step,rec_step,num_particles,log,gradient_norms,CUDA,bnn_epochs,bnn_batch_size, train_data,valid_data,test_data,softplus,bnn_model_,sensor_dimensions,train_teacher.shape[0],debug=False,logdir=log_directory,point_pdf_file=point_pdf_file,learning_rate=bnn_learning_rate,n_samples_=parameter_samples_no)
 

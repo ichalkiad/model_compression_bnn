@@ -7,16 +7,19 @@ import torch.utils as utils
 import numpy as np
 import torch
 import cPickle
+from sklearn import preprocessing
+import random
+
 CUDA_ = False
 
 
-def get_teacher_dataset(model,train_loader,test_loader,out_train_filename,out_test_filename):
+def get_teacher_dataset(sensor_dimensions,CUDA,model,train_loader,test_loader,out_train_filename,out_test_filename,out_valid_filename,scale=True):
 
         save_data = []
         for data, target in train_loader:
             data = data.type('torch.FloatTensor')
             target = target.type('torch.LongTensor')
-            if CUDA_:
+            if CUDA:
                 data, target = data.cuda(), target.cuda()
             data = Variable(data,requires_grad=False)
             target = Variable(target)
@@ -30,44 +33,93 @@ def get_teacher_dataset(model,train_loader,test_loader,out_train_filename,out_te
             s = np.concatenate((d,o),axis=1)    #((d,o,np.reshape(t,(len(t),1))),axis=1)            
             save_data.append(s)
 
+
         k = np.concatenate(save_data,axis=0)
+
+        if scale:
+           scaler = preprocessing.StandardScaler().fit(k[:,0:sensor_dimensions])                                                                                   
+           d = scaler.transform(k[:,0:sensor_dimensions])
+           k[:,0:sensor_dimensions] = d
+        
+        
         with open(out_train_filename,'wb') as f:
                 torch.save(k,f)
 
+        train = k
+        with open(test_loader,'rb') as f:   
+                data = torch.load(f)
+        data_r = data.shape[0] 
+        data_c = data.shape[1]  
+          
+        tst_idx = random.sample(range(data_r), int(np.round(0.3*data_r)))  
+        data_save = np.zeros((len(tst_idx),data_c+3))  
+        data_test_scaled = scaler.transform(data[tst_idx,0:sensor_dimensions])    
+        data_save[:,0:sensor_dimensions] = data_test_scaled   
+
+        o = np.zeros((len(data_save[:,0:sensor_dimensions]), 4))
+        o[np.arange(len(data_save[:,0:sensor_dimensions])), data[tst_idx,sensor_dimensions].astype(int)] = 1
+        data_save[:,sensor_dimensions:sensor_dimensions+4] = o
+        with open(out_test_filename,'wb') as f:  
+                torch.save(data_save,f)      
+        test = data_save
+
+        data_save = np.zeros((data_r-len(tst_idx),data_c+3))     
+        val_idx = np.setdiff1d(np.arange(0,data_r,1),tst_idx) 
+        data_val_scaled = scaler.transform(data[val_idx,0:sensor_dimensions])
+        data_save[:,0:sensor_dimensions] = data_val_scaled        
+
+        if CUDA:
+           dt = Variable(torch.Tensor(data_save[:,0:sensor_dimensions])).cuda()
+        else:
+           dt = Variable(torch.Tensor(data_save[:,0:sensor_dimensions]))
+        output = model.forward(dt)
+        o1 = np.argmax((output.data).cpu().numpy(),axis=1)
+        o = np.zeros((len(data_save[:,0:sensor_dimensions]), 4))
+        o[np.arange(len(data_save[:,0:sensor_dimensions])), o1] = 1
+
+        data_save[:,sensor_dimensions:sensor_dimensions+4] = o
+        with open(out_valid_filename,'wb') as f:   
+                torch.save(data_save,f)  
+        valid = data_save
+
+        """
         save_data = []
         for data, target in test_loader:
             data = data.type('torch.FloatTensor')
             target = target.type('torch.LongTensor')
-            if CUDA_:
+            if CUDA:
                 data, target = data.cuda(), target.cuda()
             data = Variable(data,requires_grad=False)
             target = Variable(target)
             output = model.forward(data)
             #output = model.get_logits(data)
-            d = (data.data).cpu().numpy()
+            d_ = (data.data).cpu().numpy()
+            if scale:
+               d = scaler.transform(d_)
             o1 = np.argmax((output.data).cpu().numpy(),axis=1)
             #t = (target.data).cpu().numpy()
             o = np.zeros((len(data), 4))
             o[np.arange(len(data)), o1] = 1
             s = np.concatenate((d,o),axis=1)  #((d,o,np.reshape(t,(len(t),1))),axis=1)            
             save_data.append(s)
+        
 
         k2 = np.concatenate(save_data,axis=0)
         with open(out_test_filename,'wb') as f:
                 torch.save(k,f)
+        """
+
+        return train,test,valid
 
 
-        return k,k2  #train,test
-
-
-def train(model, CUDA_, train_loader, optimizer, criterion):
+def train(model, CUDA, train_loader, optimizer, criterion):
         """Train for 1 epoch."""
         model.train()
 
         for batch_idx, (data, target) in enumerate(train_loader):
             data = data.type('torch.FloatTensor')
             target = target.type('torch.LongTensor')
-            if CUDA_:
+            if CUDA:
                data, target = data.cuda(), target.cuda()
             data, target = Variable(data), Variable(target)
             
@@ -90,7 +142,7 @@ def train(model, CUDA_, train_loader, optimizer, criterion):
             return np_loss
 
 
-def test(model, test_loader, criterion, CUDA_):
+def test(model, test_loader, criterion, CUDA):
         """Evaluate a model."""
         model.eval()
         test_loss = 0
@@ -98,7 +150,7 @@ def test(model, test_loader, criterion, CUDA_):
         for data, target in test_loader:
             data = data.type('torch.FloatTensor')
             target = target.type('torch.LongTensor')
-            if CUDA_:
+            if CUDA:
                 data, target = data.cuda(), target.cuda()
             data = Variable(data,requires_grad=False)
             target = Variable(target)

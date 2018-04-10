@@ -72,7 +72,7 @@ class BNNModel(nn.Module):
         self.fc4 = nn.Linear(self.hidden_nodes, self.output_nodes)
 
     def forward(self, x):
-        x = F.sigmoid(self.fc1(x))
+        x = self.fc1(x)
 #        x = F.relu(self.fc2(x))
 #        x = F.relu(self.fc3(x))
         x = F.sigmoid(self.fc4(x))
@@ -87,7 +87,7 @@ Initialisation of globals for model,guide loading.
 softplus = nn.Softplus()
 hidden_nodes = output_nodes = feature_num = p = N = 0
 bnn_model = False
-CUDA_ = False
+CUDA_ = True
 
 ex = Experiment('BayesianCompression')
 
@@ -104,66 +104,33 @@ def config():
     
 
     ID = 0 
-
+    CUDA = True 
     """
     Teacher parameters
     """
     batch_size = 64
     sensor_dimensions = 24
     teacher_learning_rate = 0.05
-    teacher_model = Net(sensor_dimensions)
-    CUDA = True
-    if CUDA:
-        teacher_model.cuda()
-    teacher_criterion = "NLLLoss"
-    if teacher_criterion=="NLLLoss":
-        teacher_criterion = nn.NLLLoss()
-    else:
-        print("Not implemented criterion - exit")
-        sys.exit(1)
-    teacher_optimizer = "Adagrad"
-    if teacher_optimizer=="Adagrad":
-        teacher_optimizer = optim.Adagrad(teacher_model.parameters(), lr=teacher_learning_rate)
-    else:
-        print("Not implemented optimizer - exit")
-        sys.exit(1)
+    teacher_criterion_ = "NLLLoss"
+    teacher_optimizer_ = "Adagrad"
     epochs = 1500
-    """
-    net_arch = OrderedDict()
-    for idx, module in enumerate(teacher_model.cpu().named_modules()):
-        net_arch[idx] = module
-        break
-    """
     log_directory = "/tmp/bayesian_compression_2sensors"+str(ID)+"/"
-    if not os.path.exists(log_directory):
-        os.makedirs(log_directory)
     out_train_filename = log_directory+"train_data_"+str(sensor_dimensions)+"sensors_teacherLabels.pt"
     out_test_filename = log_directory+"test_data_"+str(sensor_dimensions)+"sensors_teacherLabels.pt"
     out_valid_filename = log_directory+"valid_data_"+str(sensor_dimensions)+"sensors_teacherLabels.pt"
-
-
     """    
     Student parameters
     """
     bnn_batch_size = 4400
     batch_training = False
-    hidden_nodes_ = 6
+    hidden_nodes_ = 7
     output_nodes_ = 4
-    bnn_model_ = BNNModel(sensor_dimensions,hidden_nodes_,output_nodes_)
-
-    """
-    bnn_net_arch = OrderedDict()
-    for idx, module in enumerate(bnn_model_.cpu().named_modules()):
-        bnn_net_arch[idx] = module
-        break
-    """
     bnn_learning_rate = 0.1
     num_particles = 1
     rec_step = 10
     bnn_epochs = 1000
     point_pdf_file = log_directory+str(ID)+"_point_PDF.pt" 
-    parameter_samples_no = 5000
-
+    parameter_samples_no = 10000
     """
     Scale dataset for bayesian training
     """
@@ -365,7 +332,7 @@ def guide(data):
 
 
 @ex.automain
-def train_and_compress(batch_size,sensor_dimensions,teacher_criterion,teacher_optimizer,CUDA,teacher_model,epochs,out_train_filename,out_test_filename,out_valid_filename,bnn_batch_size,bnn_model_,bnn_learning_rate,num_particles,rec_step,bnn_epochs,point_pdf_file,log_directory,hidden_nodes_,output_nodes_,parameter_samples_no,batch_training,filename_test,scale):
+def train_and_compress(batch_size,sensor_dimensions,teacher_criterion_,teacher_learning_rate,teacher_optimizer_,CUDA,epochs,out_train_filename,out_test_filename,out_valid_filename,bnn_batch_size,bnn_learning_rate,num_particles,rec_step,bnn_epochs,point_pdf_file,log_directory,hidden_nodes_,output_nodes_,parameter_samples_no,batch_training,filename_test,scale):
 
     global feature_num
     feature_num = sensor_dimensions
@@ -377,6 +344,28 @@ def train_and_compress(batch_size,sensor_dimensions,teacher_criterion,teacher_op
     hidden_nodes = hidden_nodes_
     global output_nodes
     output_nodes = output_nodes_
+    """
+    Set up models.
+    """
+    teacher_model = Net(sensor_dimensions)
+    if CUDA:
+        teacher_model.cuda()
+    
+    if teacher_criterion_=="NLLLoss":
+        teacher_criterion = nn.NLLLoss()
+    else:
+        print("Not implemented criterion - exit")
+        sys.exit(1)
+    if teacher_optimizer_=="Adagrad":
+       teacher_optimizer = optim.Adagrad(teacher_model.parameters(), lr=teacher_learning_rate)
+    else:
+        print("Not implemented optimizer - exit")
+        sys.exit(1)
+    if not os.path.exists(log_directory):
+        os.makedirs(log_directory)
+    bnn_model_ = BNNModel(sensor_dimensions,hidden_nodes_,output_nodes_)
+    if CUDA:
+        bnn_model_.cuda()
     global bnn_model
     bnn_model = bnn_model_
       
@@ -405,6 +394,13 @@ def train_and_compress(batch_size,sensor_dimensions,teacher_criterion,teacher_op
     if batch_training==False:
         bnn_batch_size = N
 
+
+    print("Teacher network architecture:")
+    for idx, module in enumerate(teacher_model.cpu().named_modules()):
+        print(module)
+        break
+
+
     """
     Bayesian compression.
     """
@@ -420,5 +416,10 @@ def train_and_compress(batch_size,sensor_dimensions,teacher_criterion,teacher_op
     log = dict()
     gradient_norms = defaultdict(list)
 
-    bnn_main(model,guide,custom_step,rec_step,num_particles,log,gradient_norms,CUDA,bnn_epochs,bnn_batch_size, train_data,valid_data,test_data,softplus,bnn_model_,sensor_dimensions,train_teacher.shape[0],debug=False,logdir=log_directory,point_pdf_file=point_pdf_file,learning_rate=bnn_learning_rate,n_samples_=parameter_samples_no)
+    bnn_main(model,guide,custom_step,rec_step,num_particles,log,gradient_norms,CUDA,bnn_epochs,bnn_batch_size, train_data,valid_data,test_data,softplus,bnn_model,sensor_dimensions,train_teacher.shape[0],debug=False,logdir=log_directory,point_pdf_file=point_pdf_file,learning_rate=bnn_learning_rate,n_samples_=parameter_samples_no)
 
+
+    print("Student network architecture:")
+    for idx, module in enumerate(bnn_model_.cpu().named_modules()):
+        print(module)
+        break

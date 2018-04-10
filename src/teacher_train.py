@@ -10,7 +10,7 @@ import cPickle
 from sklearn import preprocessing
 import random
 
-CUDA_ = False
+CUDA_ = True
 
 
 def get_teacher_dataset(sensor_dimensions,CUDA,model,train_loader,test_loader,out_train_filename,out_test_filename,out_valid_filename,scale=True):

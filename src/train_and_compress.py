@@ -114,7 +114,7 @@ def config():
     teacher_criterion_ = "NLLLoss"
     teacher_optimizer_ = "Adagrad"
     epochs = 1500
-    log_directory = "/tmp/bayesian_compression_2sensors"+str(ID)+"/"
+    log_directory = "/tmp/bayesian_compression_"+str(sensor_dimensions)+"sensors"+str(ID)+"/"
     out_train_filename = log_directory+"train_data_"+str(sensor_dimensions)+"sensors_teacherLabels.pt"
     out_test_filename = log_directory+"test_data_"+str(sensor_dimensions)+"sensors_teacherLabels.pt"
     out_valid_filename = log_directory+"valid_data_"+str(sensor_dimensions)+"sensors_teacherLabels.pt"

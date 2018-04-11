@@ -1,0 +1,77 @@
+#!/bin/bash
+
+#SBATCH --partition=amd-longq
+#SBATCH --nodes=1
+#SBATCH -c1
+#SBATCH --gres=gpu:1
+
+#module purge 
+module load easybuild
+module unload gcc/6.3.0
+module load compiler/GCC/5.4.0-2.26
+module load vis/OpenCV/3.1.0-foss-2016b
+module load cuda90/toolkit/9.0.176
+module load cudnn/7.0
+module load devel/CMake/3.5.2-foss-2016b
+
+
+#execute application
+
+python /home/icha/compress_bnn/src/train_and_compress.py with 'db="file"' 'ID="1_1"' 'CUDA=True' 'sensor_dimensions=24' 'bnn_batch_size=4400' 'batch_training=False' 'hidden_nodes_=2' 'bnn_learning_rate=0.1' 'num_particles=1' 'rec_step=10' 'bnn_epochs=500' 'parameter_samples_no=10000'
+python /home/icha/compress_bnn/src/train_and_compress.py with 'db="file"' 'ID="1_2"' 'CUDA=True' 'sensor_dimensions=24' 'bnn_batch_size=4400' 'batch_training=False' 'hidden_nodes_=2' 'bnn_learning_rate=0.1' 'num_particles=1' 'rec_step=10' 'bnn_epochs=1000' 'parameter_samples_no=10000'
+python /home/icha/compress_bnn/src/train_and_compress.py with 'db="file"' 'ID="1_3"' 'CUDA=True' 'sensor_dimensions=24' 'bnn_batch_size=4400' 'batch_training=False' 'hidden_nodes_=2' 'bnn_learning_rate=0.1' 'num_particles=1' 'rec_step=10' 'bnn_epochs=2000' 'parameter_samples_no=10000'
+
+python /home/icha/compress_bnn/src/train_and_compress.py with 'db="file"' 'ID="2_1"' 'CUDA=True' 'sensor_dimensions=24' 'bnn_batch_size=4400' 'batch_training=False' 'hidden_nodes_=4' 'bnn_learning_rate=0.1' 'num_particles=1' 'rec_step=10' 'bnn_epochs=500' 'parameter_samples_no=10000'
+python /home/icha/compress_bnn/src/train_and_compress.py with 'db="file"' 'ID="2_2"' 'CUDA=True' 'sensor_dimensions=24' 'bnn_batch_size=4400' 'batch_training=False' 'hidden_nodes_=4' 'bnn_learning_rate=0.1' 'num_particles=1' 'rec_step=10' 'bnn_epochs=1000' 'parameter_samples_no=10000'
+python /home/icha/compress_bnn/src/train_and_compress.py with 'db="file"' 'ID="2_3"' 'CUDA=True' 'sensor_dimensions=24' 'bnn_batch_size=4400' 'batch_training=False' 'hidden_nodes_=4' 'bnn_learning_rate=0.1' 'num_particles=1' 'rec_step=10' 'bnn_epochs=2000' 'parameter_samples_no=10000'
+
+python /home/icha/compress_bnn/src/train_and_compress.py with 'db="file"' 'ID="3_1"' 'CUDA=True' 'sensor_dimensions=24' 'bnn_batch_size=4400' 'batch_training=False' 'hidden_nodes_=6' 'bnn_learning_rate=0.1' 'num_particles=1' 'rec_step=10' 'bnn_epochs=500' 'parameter_samples_no=10000'
+python /home/icha/compress_bnn/src/train_and_compress.py with 'db="file"' 'ID="3_2"' 'CUDA=True' 'sensor_dimensions=24' 'bnn_batch_size=4400' 'batch_training=False' 'hidden_nodes_=6' 'bnn_learning_rate=0.1' 'num_particles=1' 'rec_step=10' 'bnn_epochs=1000' 'parameter_samples_no=10000'
+python /home/icha/compress_bnn/src/train_and_compress.py with 'db="file"' 'ID="3_3"' 'CUDA=True' 'sensor_dimensions=24' 'bnn_batch_size=4400' 'batch_training=False' 'hidden_nodes_=6' 'bnn_learning_rate=0.1' 'num_particles=1' 'rec_step=10' 'bnn_epochs=2000' 'parameter_samples_no=10000'
+
+python /home/icha/compress_bnn/src/train_and_compress.py with 'db="file"' 'ID="4_1"' 'CUDA=True' 'sensor_dimensions=24' 'bnn_batch_size=4400' 'batch_training=False' 'hidden_nodes_=7' 'bnn_learning_rate=0.1' 'num_particles=1' 'rec_step=10' 'bnn_epochs=500' 'parameter_samples_no=10000'
+python /home/icha/compress_bnn/src/train_and_compress.py with 'db="file"' 'ID="4_2"' 'CUDA=True' 'sensor_dimensions=24' 'bnn_batch_size=4400' 'batch_training=False' 'hidden_nodes_=7' 'bnn_learning_rate=0.1' 'num_particles=1' 'rec_step=10' 'bnn_epochs=1000' 'parameter_samples_no=10000'
+python /home/icha/compress_bnn/src/train_and_compress.py with 'db="file"' 'ID="4_3"' 'CUDA=True' 'sensor_dimensions=24' 'bnn_batch_size=4400' 'batch_training=False' 'hidden_nodes_=7' 'bnn_learning_rate=0.1' 'num_particles=1' 'rec_step=10' 'bnn_epochs=2000' 'parameter_samples_no=10000'
+
+python /home/icha/compress_bnn/src/train_and_compress.py with 'db="file"' 'ID="4_1"' 'CUDA=True' 'sensor_dimensions=24' 'bnn_batch_size=4400' 'batch_training=False' 'hidden_nodes_=9' 'bnn_learning_rate=0.1' 'num_particles=1' 'rec_step=10' 'bnn_epochs=500' 'parameter_samples_no=10000'
+python /home/icha/compress_bnn/src/train_and_compress.py with 'db="file"' 'ID="4_2"' 'CUDA=True' 'sensor_dimensions=24' 'bnn_batch_size=4400' 'batch_training=False' 'hidden_nodes_=9' 'bnn_learning_rate=0.1' 'num_particles=1' 'rec_step=10' 'bnn_epochs=1000' 'parameter_samples_no=10000'
+python /home/icha/compress_bnn/src/train_and_compress.py with 'db="file"' 'ID="4_3"' 'CUDA=True' 'sensor_dimensions=24' 'bnn_batch_size=4400' 'batch_training=False' 'hidden_nodes_=9' 'bnn_learning_rate=0.1' 'num_particles=1' 'rec_step=10' 'bnn_epochs=2000' 'parameter_samples_no=10000'
+
+
+python /home/icha/compress_bnn/src/train_and_compress.py with 'db="file"' 'ID="5_1"' 'CUDA=True' 'sensor_dimensions=24' 'bnn_batch_size=4400' 'batch_training=False' 'hidden_nodes_=20' 'bnn_learning_rate=0.1' 'num_particles=1' 'rec_step=10' 'bnn_epochs=500' 'parameter_samples_no=10000'
+python /home/icha/compress_bnn/src/train_and_compress.py with 'db="file"' 'ID="5_2"' 'CUDA=True' 'sensor_dimensions=24' 'bnn_batch_size=4400' 'batch_training=False' 'hidden_nodes_=20' 'bnn_learning_rate=0.1' 'num_particles=1' 'rec_step=10' 'bnn_epochs=1000' 'parameter_samples_no=10000'
+python /home/icha/compress_bnn/src/train_and_compress.py with 'db="file"' 'ID="5_3"' 'CUDA=True' 'sensor_dimensions=24' 'bnn_batch_size=4400' 'batch_training=False' 'hidden_nodes_=20' 'bnn_learning_rate=0.1' 'num_particles=1' 'rec_step=10' 'bnn_epochs=2000' 'parameter_samples_no=10000'
+python /home/icha/compress_bnn/src/train_and_compress.py with 'db="file"' 'ID="5_4"' 'CUDA=True' 'sensor_dimensions=24' 'bnn_batch_size=4400' 'batch_training=False' 'hidden_nodes_=20' 'bnn_learning_rate=0.1' 'num_particles=1' 'rec_step=10' 'bnn_epochs=5000' 'parameter_samples_no=10000'
+
+python /home/icha/compress_bnn/src/train_and_compress.py with 'db="file"' 'ID="6_1"' 'CUDA=True' 'sensor_dimensions=24' 'bnn_batch_size=4400' 'batch_training=False' 'hidden_nodes_=50' 'bnn_learning_rate=0.1' 'num_particles=1' 'rec_step=10' 'bnn_epochs=500' 'parameter_samples_no=10000'
+python /home/icha/compress_bnn/src/train_and_compress.py with 'db="file"' 'ID="6_2"' 'CUDA=True' 'sensor_dimensions=24' 'bnn_batch_size=4400' 'batch_training=False' 'hidden_nodes_=50' 'bnn_learning_rate=0.1' 'num_particles=1' 'rec_step=10' 'bnn_epochs=1000' 'parameter_samples_no=10000'
+python /home/icha/compress_bnn/src/train_and_compress.py with 'db="file"' 'ID="6_3"' 'CUDA=True' 'sensor_dimensions=24' 'bnn_batch_size=4400' 'batch_training=False' 'hidden_nodes_=50' 'bnn_learning_rate=0.1' 'num_particles=1' 'rec_step=10' 'bnn_epochs=2000' 'parameter_samples_no=10000'
+python /home/icha/compress_bnn/src/train_and_compress.py with 'db="file"' 'ID="6_4"' 'CUDA=True' 'sensor_dimensions=24' 'bnn_batch_size=4400' 'batch_training=False' 'hidden_nodes_=50' 'bnn_learning_rate=0.1' 'num_particles=1' 'rec_step=10' 'bnn_epochs=5000' 'parameter_samples_no=10000'
+
+
+python /home/icha/compress_bnn/src/train_and_compress.py with 'db="file"' 'ID="7_1"' 'CUDA=True' 'sensor_dimensions=24' 'bnn_batch_size=4400' 'batch_training=False' 'hidden_nodes_=100' 'bnn_learning_rate=0.1' 'num_particles=1' 'rec_step=10' 'bnn_epochs=500' 'parameter_samples_no=10000'
+python /home/icha/compress_bnn/src/train_and_compress.py with 'db="file"' 'ID="7_2"' 'CUDA=True' 'sensor_dimensions=24' 'bnn_batch_size=4400' 'batch_training=False' 'hidden_nodes_=100' 'bnn_learning_rate=0.1' 'num_particles=1' 'rec_step=10' 'bnn_epochs=1000' 'parameter_samples_no=10000'
+python /home/icha/compress_bnn/src/train_and_compress.py with 'db="file"' 'ID="7_3"' 'CUDA=True' 'sensor_dimensions=24' 'bnn_batch_size=4400' 'batch_training=False' 'hidden_nodes_=100' 'bnn_learning_rate=0.1' 'num_particles=1' 'rec_step=10' 'bnn_epochs=2000' 'parameter_samples_no=10000'
+python /home/icha/compress_bnn/src/train_and_compress.py with 'db="file"' 'ID="7_4"' 'CUDA=True' 'sensor_dimensions=24' 'bnn_batch_size=4400' 'batch_training=False' 'hidden_nodes_=100' 'bnn_learning_rate=0.1' 'num_particles=1' 'rec_step=10' 'bnn_epochs=5000' 'parameter_samples_no=10000'
+
+python /home/icha/compress_bnn/src/train_and_compress.py with 'db="file"' 'ID="8_1"' 'CUDA=True' 'sensor_dimensions=24' 'bnn_batch_size=4400' 'batch_training=False' 'hidden_nodes_=200' 'bnn_learning_rate=0.1' 'num_particles=1' 'rec_step=10' 'bnn_epochs=500' 'parameter_samples_no=10000'
+python /home/icha/compress_bnn/src/train_and_compress.py with 'db="file"' 'ID="8_2"' 'CUDA=True' 'sensor_dimensions=24' 'bnn_batch_size=4400' 'batch_training=False' 'hidden_nodes_=200' 'bnn_learning_rate=0.1' 'num_particles=1' 'rec_step=10' 'bnn_epochs=1000' 'parameter_samples_no=10000'
+python /home/icha/compress_bnn/src/train_and_compress.py with 'db="file"' 'ID="8_3"' 'CUDA=True' 'sensor_dimensions=24' 'bnn_batch_size=4400' 'batch_training=False' 'hidden_nodes_=200' 'bnn_learning_rate=0.1' 'num_particles=1' 'rec_step=10' 'bnn_epochs=2000' 'parameter_samples_no=10000'
+python /home/icha/compress_bnn/src/train_and_compress.py with 'db="file"' 'ID="8_4"' 'CUDA=True' 'sensor_dimensions=24' 'bnn_batch_size=4400' 'batch_training=False' 'hidden_nodes_=200' 'bnn_learning_rate=0.1' 'num_particles=1' 'rec_step=10' 'bnn_epochs=5000' 'parameter_samples_no=10000'
+
+
+python /home/icha/compress_bnn/src/train_and_compress.py with 'db="file"' 'ID="9_1"' 'CUDA=True' 'sensor_dimensions=24' 'bnn_batch_size=4400' 'batch_training=False' 'hidden_nodes_=1000' 'bnn_learning_rate=0.1' 'num_particles=1' 'rec_step=10' 'bnn_epochs=500' 'parameter_samples_no=10000'
+python /home/icha/compress_bnn/src/train_and_compress.py with 'db="file"' 'ID="9_2"' 'CUDA=True' 'sensor_dimensions=24' 'bnn_batch_size=4400' 'batch_training=False' 'hidden_nodes_=1000' 'bnn_learning_rate=0.1' 'num_particles=1' 'rec_step=10' 'bnn_epochs=1000' 'parameter_samples_no=10000'
+python /home/icha/compress_bnn/src/train_and_compress.py with 'db="file"' 'ID="9_3"' 'CUDA=True' 'sensor_dimensions=24' 'bnn_batch_size=4400' 'batch_training=False' 'hidden_nodes_=1000' 'bnn_learning_rate=0.1' 'num_particles=1' 'rec_step=10' 'bnn_epochs=2000' 'parameter_samples_no=10000'
+python /home/icha/compress_bnn/src/train_and_compress.py with 'db="file"' 'ID="9_4"' 'CUDA=True' 'sensor_dimensions=24' 'bnn_batch_size=4400' 'batch_training=False' 'hidden_nodes_=1000' 'bnn_learning_rate=0.1' 'num_particles=1' 'rec_step=10' 'bnn_epochs=5000' 'parameter_samples_no=10000'
+
+
+
+#Group and copy over results to main node.
+tar czf runs_24sensors.tar.gz /tmp/bayesian_compression_24sensors*
+scp runs_24sensors.tar.gz icha@robotarium:/home/icha
+
+
+# exit
+exit 0 
+

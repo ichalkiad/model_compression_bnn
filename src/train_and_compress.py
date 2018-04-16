@@ -76,7 +76,7 @@ class BNNModel(nn.Module):
 #        x = F.relu(self.fc2(x))
 #        x = F.relu(self.fc3(x))
         x = F.sigmoid(self.fc4(x))
-#        x = F.log_softmax(x,dim=-1) 
+        x = F.softmax(x,dim=-1) 
 
         return x
 
@@ -419,6 +419,8 @@ def train_and_compress(batch_size,sensor_dimensions,teacher_criterion_,teacher_l
     bnn_main(model,guide,custom_step,rec_step,num_particles,log,gradient_norms,CUDA,bnn_epochs,bnn_batch_size, train_data,valid_data,test_data,softplus,bnn_model,sensor_dimensions,train_teacher.shape[0],debug=False,logdir=log_directory,point_pdf_file=point_pdf_file,learning_rate=bnn_learning_rate,n_samples_=parameter_samples_no)
 
 
+    
+    
     print("Student network architecture:")
     for idx, module in enumerate(bnn_model_.cpu().named_modules()):
         print(module)

@@ -333,7 +333,12 @@ def main(model,guide,custom_step,rec_step,num_particles,log,gradient_norms,args_
         
         """
 
+    """
+    Save model for evaluation
     
+    PATH = "./bnn_test_model.pt"
+    torch.save(regression_model.state_dict(), PATH)
+    """
     # Validate - test model
     print("Validate trained model...")
     #Number of parameter sampling steps

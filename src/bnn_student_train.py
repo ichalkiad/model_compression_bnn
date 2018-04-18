@@ -15,9 +15,11 @@ import json
 import time
 import datetime
 from collections import defaultdict
-
+from matplotlib import pyplot as plt
+from sklearn.metrics import confusion_matrix
+import itertools
 from debug_bnn import wdecay, create_dataset, create_grid
-from debug_visualisation import visualise_and_debug
+from debug_visualisation import visualise_and_debug,plot_confusion_matrix
 
 """
 hidden_nodes  = 7
@@ -260,11 +262,11 @@ def get_batch_indices(N, batch_size):
     return all_batches
 
 
-def main(model,guide,custom_step,rec_step,num_particles,log,gradient_norms,args_cuda,args_num_epochs,args_batch_size,data,valid_data,test_data,softplus,regression_model,feature_num,N,debug,logdir='/tmp/runs_icha/',point_pdf_file='/tmp/PredictionPDF.pt',learning_rate=None,n_samples_=10):
+def main(model,guide,custom_step,rec_step,num_particles,log,gradient_norms,args_cuda,args_num_epochs,args_batch_size,data,valid_data,softplus,regression_model,feature_num,N,debug,logdir='/tmp/runs_icha/',point_pdf_file='/tmp/PredictionPDF.pt',learning_rate=None,n_samples_=10,log_directory="./",fname_student="./student_confMat.pdf"):
 
     #Initialize summary writer for Tensorboard
     writer = SummaryWriter(logdir)
-    x_data, y_data = test_data[:,0:feature_num], test_data[:,feature_num:feature_num+4] #feature_num+4 : change if not 1-hot
+    x_data, y_data = valid_data[:,0:feature_num], valid_data[:,feature_num:feature_num+4] #feature_num+4 : change if not 1-hot
 
     global CUDA_    
     if args_cuda:
@@ -316,7 +318,6 @@ def main(model,guide,custom_step,rec_step,num_particles,log,gradient_norms,args_
             for name, grad_norms in gradient_norms.items():
                 writer.add_scalar("gradients/"+name, np.average(grad_norms), j)
         
-        
         #Clear dict for next epoch
         gradient_norms.clear() 
 
@@ -335,10 +336,11 @@ def main(model,guide,custom_step,rec_step,num_particles,log,gradient_norms,args_
 
     """
     Save model for evaluation
-    
-    PATH = "./bnn_test_model.pt"
-    torch.save(regression_model.state_dict(), PATH)
     """
+    PATH = log_directory + "/bnn_student_model.pt"
+    #print(pyro.get_param_store().named_parameters())        
+    pyro.get_param_store().save(PATH)
+    
     # Validate - test model
     print("Validate trained model...")
     #Number of parameter sampling steps
@@ -404,7 +406,7 @@ def main(model,guide,custom_step,rec_step,num_particles,log,gradient_norms,args_
        accuracy = len(np.where(majority_class==np.argmax(y_data.cpu().data.numpy(),axis=1))[0])/float(len(majority_class))*100    
     else:
        accuracy = len(np.where(majority_class==np.argmax(y_data.data.numpy(),axis=1))[0])/float(len(majority_class))*100
-    print("Prediction accuracy on test set is {}".format(accuracy,"%"))
+    print("Prediction accuracy on validation set is {}".format(accuracy,"%"))
 
     # Use average accuracy to get accuracy on test data 
     acc_samples = np.argmax(y_pred_np,axis=2)
@@ -415,8 +417,14 @@ def main(model,guide,custom_step,rec_step,num_particles,log,gradient_norms,args_
         else:
             accuracy += len(np.where(acc_samples[i,:]==np.argmax(y_data.data.numpy(),axis=1))[0])/float(acc_samples.shape[1])*100
 
-    print("Average prediction accuracy on test set is {}".format(accuracy/n_samples,"%"))
+    print("Average prediction accuracy on validation set is {}".format(accuracy/n_samples,"%"))
 
+    names = ['Slight-Right-Turn','Sharp-Right-Turn','Move-Forward','Slight-Left-Turn']
+    cnf_matrix = confusion_matrix(np.argmax(y_data.cpu().data.numpy(),axis=1), majority_class)  
+    fig2 = plt.figure(2, figsize=(15, 7))
+    plot_confusion_matrix(cnf_matrix, classes=names,normalize=False,title='Student confusion matrix, without normalization')
+    plt.savefig(fname_student)
+    
 
     """
     base_pred = np.argmax(sampled_reg_model(Variable(torch.Tensor(tst_data))).data.numpy(),axis=1)

@@ -13,7 +13,7 @@ import random
 CUDA_ = True
 
 
-def get_teacher_dataset(sensor_dimensions,CUDA,model,train_loader,test_loader,out_train_filename,out_test_filename,out_valid_filename,scale=True):
+def get_teacher_dataset(sensor_dimensions,CUDA,model,train_loader,valid_loader,out_train_filename,out_valid_filename,scale=True):
 
         save_data = []
         for data, target in train_loader:
@@ -45,46 +45,9 @@ def get_teacher_dataset(sensor_dimensions,CUDA,model,train_loader,test_loader,ou
         with open(out_train_filename,'wb') as f:
                 torch.save(k,f)
 
-        train = k
-        with open(test_loader,'rb') as f:   
-                data = torch.load(f)
-        data_r = data.shape[0] 
-        data_c = data.shape[1]  
-          
-        tst_idx = random.sample(range(data_r), int(np.round(0.3*data_r)))  
-        data_save = np.zeros((len(tst_idx),data_c+3))  
-        data_test_scaled = scaler.transform(data[tst_idx,0:sensor_dimensions])    
-        data_save[:,0:sensor_dimensions] = data_test_scaled   
-
-        o = np.zeros((len(data_save[:,0:sensor_dimensions]), 4))
-        o[np.arange(len(data_save[:,0:sensor_dimensions])), data[tst_idx,sensor_dimensions].astype(int)] = 1
-        data_save[:,sensor_dimensions:sensor_dimensions+4] = o
-        with open(out_test_filename,'wb') as f:  
-                torch.save(data_save,f)      
-        test = data_save
-
-        data_save = np.zeros((data_r-len(tst_idx),data_c+3))     
-        val_idx = np.setdiff1d(np.arange(0,data_r,1),tst_idx) 
-        data_val_scaled = scaler.transform(data[val_idx,0:sensor_dimensions])
-        data_save[:,0:sensor_dimensions] = data_val_scaled        
-
-        if CUDA:
-           dt = Variable(torch.Tensor(data_save[:,0:sensor_dimensions])).cuda()
-        else:
-           dt = Variable(torch.Tensor(data_save[:,0:sensor_dimensions]))
-        output = model.forward(dt)
-        o1 = np.argmax((output.data).cpu().numpy(),axis=1)
-        o = np.zeros((len(data_save[:,0:sensor_dimensions]), 4))
-        o[np.arange(len(data_save[:,0:sensor_dimensions])), o1] = 1
-
-        data_save[:,sensor_dimensions:sensor_dimensions+4] = o
-        with open(out_valid_filename,'wb') as f:   
-                torch.save(data_save,f)  
-        valid = data_save
-
-        """
+        
         save_data = []
-        for data, target in test_loader:
+        for data, target in valid_loader:
             data = data.type('torch.FloatTensor')
             target = target.type('torch.LongTensor')
             if CUDA:
@@ -105,11 +68,11 @@ def get_teacher_dataset(sensor_dimensions,CUDA,model,train_loader,test_loader,ou
         
 
         k2 = np.concatenate(save_data,axis=0)
-        with open(out_test_filename,'wb') as f:
+        with open(out_valid_filename,'wb') as f:
                 torch.save(k,f)
-        """
+       
 
-        return train,test,valid
+        return k,k2
 
 
 def train(model, CUDA, train_loader, optimizer, criterion):
@@ -143,7 +106,9 @@ def train(model, CUDA, train_loader, optimizer, criterion):
 
 
 def test(model, test_loader, criterion, CUDA):
-        """Evaluate a model."""
+        """Evaluate a model.
+           Target has to be a number between 0-C for C classes.
+        """
         model.eval()
         test_loss = 0
         correct = 0
@@ -153,7 +118,7 @@ def test(model, test_loader, criterion, CUDA):
             if CUDA:
                 data, target = data.cuda(), target.cuda()
             data = Variable(data,requires_grad=False)
-            target = Variable(target)
+            target = Variable(target) 
             output = model(data)
             test_loss += criterion(output, target).data[0]
             # get the index of the max log-probability                                                                              
@@ -164,7 +129,7 @@ def test(model, test_loader, criterion, CUDA):
         accuracy = 100. * correct / len(test_loader.dataset)
         return accuracy
 
-
+"""
 batch_size = 64
 sensor_dimensions = 2
 train_loader = utils.data.DataLoader(WallNavDataset.WallNavDataset(root_dir='../data/Wall', train=True,sensor_dimensions=sensor_dimensions),batch_size=batch_size, shuffle=True)
@@ -203,7 +168,7 @@ class Net(nn.Module):
 
         return x
 
-"""
+
 
 model = Net()
 if CUDA_:

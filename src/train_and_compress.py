@@ -21,9 +21,13 @@ import pyro
 from pyro.distributions import Normal
 from pyro.infer import SVI
 from pyro.optim import Adam, SGD
-
+from sklearn.metrics import confusion_matrix
+import itertools
+from matplotlib import pyplot as plt
 from debug_bnn import wdecay, create_dataset, create_grid
-from debug_visualisation import visualise_and_debug
+from debug_visualisation import visualise_and_debug, plot_confusion_matrix
+
+
 
 
 """
@@ -59,23 +63,13 @@ class BNNModel(nn.Module):
     def __init__(self, p, hidden_nodes,output_nodes):
         super(BNNModel, self).__init__()
         self.hidden_nodes = hidden_nodes
-#        self.hidden_nodes2 = hidden_nodes2
-        """
-        self.hidden_nodes3 = hidden_nodes3
-        """
         self.output_nodes = output_nodes
         self.fc1 = nn.Linear(p, self.hidden_nodes)
-#        self.fc2 = nn.Linear(self.hidden_nodes, self.hidden_nodes2)
-        """
-        self.fc3 = nn.Linear(self.hidden_nodes2, self.hidden_nodes3)
-        """
-        self.fc4 = nn.Linear(self.hidden_nodes, self.output_nodes)
+        self.fc2 = nn.Linear(self.hidden_nodes, self.output_nodes)
 
     def forward(self, x):
         x = self.fc1(x)
-#        x = F.relu(self.fc2(x))
-#        x = F.relu(self.fc3(x))
-        x = F.sigmoid(self.fc4(x))
+        x = F.sigmoid(self.fc2(x))
         x = F.softmax(x,dim=-1) 
 
         return x
@@ -116,8 +110,10 @@ def config():
     epochs = 1500
     log_directory = "/tmp/bayesian_compression_"+str(sensor_dimensions)+"sensors"+str(ID)+"/"
     out_train_filename = log_directory+"train_data_"+str(sensor_dimensions)+"sensors_teacherLabels.pt"
-    out_test_filename = log_directory+"test_data_"+str(sensor_dimensions)+"sensors_teacherLabels.pt"
     out_valid_filename = log_directory+"valid_data_"+str(sensor_dimensions)+"sensors_teacherLabels.pt"
+    fname = log_directory+"teacher_confusion_mat.pdf"
+    fname_teacher = log_directory+"teacher_model.pt"
+
     """    
     Student parameters
     """
@@ -135,8 +131,7 @@ def config():
     Scale dataset for bayesian training
     """
     scale = True
-    filename_test = "../data/Wall/test_data_"+str(sensor_dimensions)+"sensors.pt"
-    
+    fname_student = log_directory+"student_confusion_mat.pdf"         
    
 """
 Bayesian training requisites.
@@ -175,53 +170,25 @@ def model(data):
         sigma1 = Variable(torch.ones(hidden_nodes, p)).cuda()
         bias_mu1 = Variable(torch.zeros(1, hidden_nodes)).cuda()
         bias_sigma1 = Variable(torch.ones(1, hidden_nodes)).cuda()
-        """
-        mu2 = Variable(torch.zeros(hidden_nodes2, hidden_nodes)).cuda()
-        sigma2 = Variable(torch.ones(hidden_nodes2, hidden_nodes)).cuda()
-        bias_mu2 = Variable(torch.zeros(1, hidden_nodes2)).cuda()
-        bias_sigma2 = Variable(torch.ones(1, hidden_nodes2)).cuda()
-        
-        mu3 = Variable(torch.zeros(hidden_nodes3, hidden_nodes2)).cuda()
-        sigma3 = Variable(torch.ones(hidden_nodes3, hidden_nodes2)).cuda()
-        bias_mu3 = Variable(torch.zeros(1, hidden_nodes3)).cuda()
-        bias_sigma3 = Variable(torch.ones(1, hidden_nodes3)).cuda()
-        """
-        mu4 = Variable(torch.zeros(output_nodes, hidden_nodes)).cuda()
-        sigma4 = Variable(torch.ones(output_nodes, hidden_nodes)).cuda()
-        bias_mu4 = Variable(torch.zeros(1, output_nodes)).cuda()
-        bias_sigma4 = Variable(torch.ones(1, output_nodes)).cuda()
+        mu2 = Variable(torch.zeros(output_nodes, hidden_nodes)).cuda()
+        sigma2 = Variable(torch.ones(output_nodes, hidden_nodes)).cuda()
+        bias_mu2 = Variable(torch.zeros(1, output_nodes)).cuda()
+        bias_sigma2 = Variable(torch.ones(1, output_nodes)).cuda()
     else:
         mu1 = Variable(torch.zeros(hidden_nodes, p))
         sigma1 = Variable(torch.ones(hidden_nodes, p))
         bias_mu1 = Variable(torch.zeros(1, hidden_nodes))
         bias_sigma1 = Variable(torch.ones(1, hidden_nodes))
-        """
-        mu2 = Variable(torch.zeros(hidden_nodes2, hidden_nodes))
-        sigma2 = Variable(torch.ones(hidden_nodes2, hidden_nodes))
-        bias_mu2 = Variable(torch.zeros(1, hidden_nodes2))
-        bias_sigma2 = Variable(torch.ones(1, hidden_nodes2))
-        
-        mu3 = Variable(torch.zeros(hidden_nodes3, hidden_nodes2))
-        sigma3 = Variable(torch.ones(hidden_nodes3, hidden_nodes2))
-        bias_mu3 = Variable(torch.zeros(1, hidden_nodes3))
-        bias_sigma3 = Variable(torch.ones(1, hidden_nodes3))
-        """
-        mu4 = Variable(torch.zeros(output_nodes, hidden_nodes))
-        sigma4 = Variable(torch.ones(output_nodes, hidden_nodes))
-        bias_mu4 = Variable(torch.zeros(1, output_nodes))
-        bias_sigma4 = Variable(torch.ones(1, output_nodes))
+        mu2 = Variable(torch.zeros(output_nodes, hidden_nodes))
+        sigma2 = Variable(torch.ones(output_nodes, hidden_nodes))
+        bias_mu2 = Variable(torch.zeros(1, output_nodes))
+        bias_sigma2 = Variable(torch.ones(1, output_nodes))
 
 
     w_prior1, b_prior1 = Normal(mu1, sigma1), Normal(bias_mu1, bias_sigma1)
-    """
     w_prior2, b_prior2 = Normal(mu2, sigma2), Normal(bias_mu2, bias_sigma2)
-    
-    w_prior3, b_prior3 = Normal(mu3, sigma3), Normal(bias_mu3, bias_sigma3)
-    """
-    w_prior4, b_prior4 = Normal(mu4, sigma4), Normal(bias_mu4, bias_sigma4)
 
-    #priors = {'fc1.weight': w_prior1, 'fc1.bias': b_prior1, 'fc2.weight': w_prior2, 'fc2.bias': b_prior2, 'fc3.weight': w_prior3, 'fc3.bias': b_prior3, 'fc4.weight': w_prior4, 'fc4.bias': b_prior4}
-    priors = {'fc1.weight': w_prior1, 'fc1.bias': b_prior1, 'fc4.weight': w_prior4, 'fc4.bias': b_prior4}
+    priors = {'fc1.weight': w_prior1, 'fc1.bias': b_prior1, 'fc2.weight': w_prior2, 'fc2.bias': b_prior2}
     # lift module parameters to random variables sampled from the priors
     lifted_module = pyro.random_module("module", bnn_model, priors)
     # sample a regressor (which also samples w and b)
@@ -244,43 +211,19 @@ def guide(data):
         w_log_sig1 = Variable((-3.0 * torch.ones(hidden_nodes, p) + 0.05 * torch.randn(hidden_nodes, p)).cuda(), requires_grad=True)
         b_mu1 = Variable(torch.randn(1, hidden_nodes).cuda(), requires_grad=True)
         b_log_sig1 = Variable((-3.0 * torch.ones(1, hidden_nodes) + 0.05 * torch.randn(1, hidden_nodes)).cuda(), requires_grad=True)
-        """
-        w_mu2 = Variable(torch.randn(hidden_nodes2, hidden_nodes).cuda(), requires_grad=True)
-        w_log_sig2 = Variable((-3.0 * torch.ones(hidden_nodes2, hidden_nodes) + 0.05 * torch.randn(hidden_nodes2, hidden_nodes)).cuda(), requires_grad=True)
-        b_mu2 = Variable(torch.randn(1, hidden_nodes2).cuda(), requires_grad=True)
-        b_log_sig2 = Variable((-3.0 * torch.ones(1, hidden_nodes2) + 0.05 * torch.randn(1, hidden_nodes2)).cuda(), requires_grad=True)
-        
-        w_mu3 = Variable(torch.randn(hidden_nodes3, hidden_nodes2).cuda(), requires_grad=True)
-        w_log_sig3 = Variable((-3.0 * torch.ones(hidden_nodes3, hidden_nodes2) + 0.05 * torch.randn(hidden_nodes3, hidden_nodes2)).cuda(), requires_grad=True)
-        b_mu3 = Variable(torch.randn(1, hidden_nodes3).cuda(), requires_grad=True)
-        b_log_sig3 = Variable((-3.0 * torch.ones(1, hidden_nodes3) + 0.05 * torch.randn(1, hidden_nodes3)).cuda(), requires_grad=True)
-        """
-        w_mu4 = Variable(torch.randn(output_nodes, hidden_nodes).cuda(), requires_grad=True)
-        w_log_sig4 = Variable((-3.0 * torch.ones(output_nodes, hidden_nodes) + 0.05 * torch.randn(output_nodes, hidden_nodes)).cuda(), requires_grad=True)
-        b_mu4 = Variable(torch.randn(1, output_nodes).cuda(), requires_grad=True)
-        b_log_sig4 = Variable((-3.0 * torch.ones(1, output_nodes) + 0.05 * torch.randn(1, output_nodes)).cuda(), requires_grad=True)
-
+        w_mu2 = Variable(torch.randn(output_nodes, hidden_nodes).cuda(), requires_grad=True)
+        w_log_sig2 = Variable((-3.0 * torch.ones(output_nodes, hidden_nodes) + 0.05 * torch.randn(output_nodes, hidden_nodes)).cuda(), requires_grad=True)
+        b_mu2 = Variable(torch.randn(1, output_nodes).cuda(), requires_grad=True)
+        b_log_sig2 = Variable((-3.0 * torch.ones(1, output_nodes) + 0.05 * torch.randn(1, output_nodes)).cuda(), requires_grad=True)
     else:
         w_mu1 = Variable(torch.randn(hidden_nodes, p), requires_grad=True)
         w_log_sig1 = Variable((-3.0 * torch.ones(hidden_nodes, p) + 0.05 * torch.randn(hidden_nodes, p)), requires_grad=True)
         b_mu1 = Variable(torch.randn(1, hidden_nodes), requires_grad=True)
         b_log_sig1 = Variable((-3.0 * torch.ones(1, hidden_nodes) + 0.05 * torch.randn(1, hidden_nodes)), requires_grad=True)
-        """
-        w_mu2 = Variable(torch.randn(hidden_nodes2, hidden_nodes), requires_grad=True)
-        w_log_sig2 = Variable((-3.0 * torch.ones(hidden_nodes2, hidden_nodes) + 0.05 * torch.randn(hidden_nodes2, hidden_nodes)), requires_grad=True)
-        b_mu2 = Variable(torch.randn(1, hidden_nodes2), requires_grad=True)
-        b_log_sig2 = Variable((-3.0 * torch.ones(1, hidden_nodes2) + 0.05 * torch.randn(1, hidden_nodes2)), requires_grad=True)
-        
-        w_mu3 = Variable(torch.randn(hidden_nodes3, hidden_nodes2), requires_grad=True)
-        w_log_sig3 = Variable((-3.0 * torch.ones(hidden_nodes3, hidden_nodes2) + 0.05 * torch.randn(hidden_nodes3, hidden_nodes2)), requires_grad=True)
-        b_mu3 = Variable(torch.randn(1, hidden_nodes3), requires_grad=True)
-        b_log_sig3 = Variable((-3.0 * torch.ones(1, hidden_nodes3) + 0.05 * torch.randn(1, hidden_nodes3)), requires_grad=True)
-        """
-        w_mu4 = Variable(torch.randn(output_nodes, hidden_nodes), requires_grad=True)
-        w_log_sig4 = Variable((-3.0 * torch.ones(output_nodes, hidden_nodes) + 0.05 * torch.randn(output_nodes, hidden_nodes)), requires_grad=True)
-        b_mu4 = Variable(torch.randn(1, output_nodes), requires_grad=True)
-        b_log_sig4 = Variable((-3.0 * torch.ones(1, output_nodes) + 0.05 * torch.randn(1, output_nodes)), requires_grad=True)
-
+        w_mu2 = Variable(torch.randn(output_nodes, hidden_nodes), requires_grad=True)
+        w_log_sig2 = Variable((-3.0 * torch.ones(output_nodes, hidden_nodes) + 0.05 * torch.randn(output_nodes, hidden_nodes)), requires_grad=True)
+        b_mu2 = Variable(torch.randn(1, output_nodes), requires_grad=True)
+        b_log_sig2 = Variable((-3.0 * torch.ones(1, output_nodes) + 0.05 * torch.randn(1, output_nodes)), requires_grad=True)
 
     # register learnable params in the param store
     mw_param1 = pyro.param("guide_mean_weight1", w_mu1)
@@ -290,7 +233,6 @@ def guide(data):
     # gaussian guide distributions for w and b
     w_dist1 = Normal(mw_param1, sw_param1)
     b_dist1 = Normal(mb_param1, sb_param1)
-    """
     # register learnable params in the param store
     mw_param2 = pyro.param("guide_mean_weight2", w_mu2)
     sw_param2 = softplus(pyro.param("guide_log_sigma_weight2", w_log_sig2))
@@ -300,27 +242,7 @@ def guide(data):
     w_dist2 = Normal(mw_param2, sw_param2)
     b_dist2 = Normal(mb_param2, sb_param2)
     
-    # register learnable params in the param store
-    mw_param3 = pyro.param("guide_mean_weight3", w_mu3)
-    sw_param3 = softplus(pyro.param("guide_log_sigma_weight3", w_log_sig3))
-    mb_param3 = pyro.param("guide_mean_bias3", b_mu3)
-    sb_param3 = softplus(pyro.param("guide_log_sigma_bias3", b_log_sig3))
-    # gaussian guide distributions for w and b
-    w_dist3 = Normal(mw_param3, sw_param3)
-    b_dist3 = Normal(mb_param3, sb_param3)
-    """
-    # register learnable params in the param store
-    mw_param4 = pyro.param("guide_mean_weight4", w_mu4)
-    sw_param4 = softplus(pyro.param("guide_log_sigma_weight4", w_log_sig4))
-    mb_param4 = pyro.param("guide_mean_bias4", b_mu4)
-    sb_param4 = softplus(pyro.param("guide_log_sigma_bias4", b_log_sig4))
-    # gaussian guide distributions for w and b
-    w_dist4 = Normal(mw_param4, sw_param4)
-    b_dist4 = Normal(mb_param4, sb_param4)
-    
-
-    #dists = {'fc1.weight': w_dist1, 'fc1.bias': b_dist1, 'fc2.weight': w_dist2, 'fc2.bias': b_dist2, 'fc3.weight': w_dist3, 'fc3.bias': b_dist3, 'fc4.weight': w_dist4, 'fc4.bias': b_dist4}
-    dists = {'fc1.weight': w_dist1, 'fc1.bias': b_dist1, 'fc4.weight': w_dist4, 'fc4.bias': b_dist4}
+    dists = {'fc1.weight': w_dist1, 'fc1.bias': b_dist1, 'fc2.weight': w_dist2, 'fc2.bias': b_dist2}
     # overloading the parameters in the module with random samples from the guide distributions
     lifted_module = pyro.random_module("module", bnn_model, dists)
     # sample a regressor
@@ -332,7 +254,7 @@ def guide(data):
 
 
 @ex.automain
-def train_and_compress(batch_size,sensor_dimensions,teacher_criterion_,teacher_learning_rate,teacher_optimizer_,CUDA,epochs,out_train_filename,out_test_filename,out_valid_filename,bnn_batch_size,bnn_learning_rate,num_particles,rec_step,bnn_epochs,point_pdf_file,log_directory,hidden_nodes_,output_nodes_,parameter_samples_no,batch_training,filename_test,scale):
+def train_and_compress(batch_size,sensor_dimensions,teacher_criterion_,teacher_learning_rate,teacher_optimizer_,CUDA,epochs,out_train_filename,out_valid_filename,bnn_batch_size,bnn_learning_rate,num_particles,rec_step,bnn_epochs,point_pdf_file,log_directory,hidden_nodes_,output_nodes_,parameter_samples_no,batch_training,scale,fname,fname_teacher,fname_student):
 
     global feature_num
     feature_num = sensor_dimensions
@@ -372,8 +294,10 @@ def train_and_compress(batch_size,sensor_dimensions,teacher_criterion_,teacher_l
     """
     Set up data loaders for teacher training.
     """
-    train_loader = utils.data.DataLoader(WallNavDataset.WallNavDataset(root_dir='../data/Wall', train=True,sensor_dimensions=sensor_dimensions),batch_size=batch_size, shuffle=True)
-    test_loader = utils.data.DataLoader(WallNavDataset.WallNavDataset(root_dir='../data/Wall', train=False,sensor_dimensions=sensor_dimensions),batch_size=batch_size, shuffle=True)
+    trainSet = WallNavDataset.WallNavDataset(root_dir='../data/Wall', train=True,sensor_dimensions=sensor_dimensions)
+    validSet = WallNavDataset.WallNavDataset(root_dir='../data/Wall', train=False,valid=True,sensor_dimensions=sensor_dimensions)
+    train_loader = utils.data.DataLoader(trainSet,batch_size=batch_size, shuffle=True)
+    valid_loader = utils.data.DataLoader(validSet,batch_size=batch_size, shuffle=True)
 
 
     """
@@ -382,18 +306,33 @@ def train_and_compress(batch_size,sensor_dimensions,teacher_criterion_,teacher_l
     for epoch in xrange(epochs):
         train(teacher_model, CUDA, train_loader, teacher_optimizer, teacher_criterion)
     print('Finished teacher training\n')
-    print('Accuracy:{}\n'.format(test(teacher_model, test_loader, teacher_criterion, CUDA)))
+    print('Accuracy - validation set:{}\n'.format(test(teacher_model, valid_loader, teacher_criterion, CUDA)))
 
+    """
+    Save teacher model for evaluation
+    """
+    torch.save(teacher_model.state_dict(), fname_teacher)
+    
 
     """
     Get teacher data for bayesian compression.
     """
-    train_teacher,test_teacher,valid_teacher = get_teacher_dataset(sensor_dimensions,CUDA,teacher_model,train_loader,filename_test,out_train_filename,out_test_filename,out_valid_filename,scale=True)
+    train_teacher, valid_teacher = get_teacher_dataset(sensor_dimensions,CUDA,teacher_model,train_loader,valid_loader,out_train_filename,out_valid_filename,scale=True)
     global N
     N = train_teacher.shape[0]
     if batch_training==False:
         bnn_batch_size = N
 
+    """
+    Save teacher confusion matrix
+    """
+    names = ['Slight-Right-Turn','Sharp-Right-Turn','Move-Forward','Slight-Left-Turn']
+    cnf_matrix = confusion_matrix(np.argmax(validSet.validS()[:,-5:-1],axis=1), np.argmax(valid_teacher[:,-5:-1],axis=1))  
+    fig1 = plt.figure(1, figsize=(15, 7))
+    plot_confusion_matrix(cnf_matrix, classes=names,normalize=False,title='Teacher confusion matrix, without normalization')
+    plt.savefig(fname) 
+
+        
 
     print("Teacher network architecture:")
     for idx, module in enumerate(teacher_model.cpu().named_modules()):
@@ -404,10 +343,9 @@ def train_and_compress(batch_size,sensor_dimensions,teacher_criterion_,teacher_l
     """
     Bayesian compression.
     """
-
+    #Train and valid data scaled and labeled by teacher model.
     train_data = Variable(torch.Tensor(train_teacher))
     valid_data = Variable(torch.Tensor(valid_teacher))
-    test_data = Variable(torch.Tensor(test_teacher))
 
 
     """
@@ -416,10 +354,9 @@ def train_and_compress(batch_size,sensor_dimensions,teacher_criterion_,teacher_l
     log = dict()
     gradient_norms = defaultdict(list)
 
-    bnn_main(model,guide,custom_step,rec_step,num_particles,log,gradient_norms,CUDA,bnn_epochs,bnn_batch_size, train_data,valid_data,test_data,softplus,bnn_model,sensor_dimensions,train_teacher.shape[0],debug=False,logdir=log_directory,point_pdf_file=point_pdf_file,learning_rate=bnn_learning_rate,n_samples_=parameter_samples_no)
-
-
     
+    bnn_main(model,guide,custom_step,rec_step,num_particles,log,gradient_norms,CUDA,bnn_epochs,bnn_batch_size, train_data,valid_data,softplus,bnn_model,sensor_dimensions,train_teacher.shape[0],debug=False,logdir=log_directory,point_pdf_file=point_pdf_file,learning_rate=bnn_learning_rate,n_samples_=parameter_samples_no,log_directory=log_directory,fname_student=fname_student)
+
     
     print("Student network architecture:")
     for idx, module in enumerate(bnn_model_.cpu().named_modules()):

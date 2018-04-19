@@ -8,7 +8,7 @@ from torch.autograd import Variable
 import pyro
 from pyro.distributions import Normal, Bernoulli 
 from pyro.infer import SVI
-from pyro.optim import Adam, SGD
+from pyro.optim import Adam, SGD, ClippedAdam
 import cPickle
 from tensorboardX import SummaryWriter
 import json
@@ -291,6 +291,8 @@ def main(model,guide,custom_step,rec_step,num_particles,log,gradient_norms,args_
     log["lr"] = learning_rate
     log["num_particles"] = num_particles
 
+    param_ctrl = defaultdict()
+    p = 0
     for j in xrange(args_num_epochs):
         if args_batch_size == N:
             # use the entire data set
@@ -316,7 +318,18 @@ def main(model,guide,custom_step,rec_step,num_particles,log,gradient_norms,args_
             writer.add_scalar('data/valid_loss_avg', epoch_loss_valid/float(len(valid_data)), j/rec_step)
             #Monitor gradient norms
             for name, grad_norms in gradient_norms.items():
-                writer.add_scalar("gradients/"+name, np.average(grad_norms), j)
+                writer.add_scalar("gradients/"+name, grad_norms[0], j)
+                param_ctrl["gradients_"+name] = grad_norms[0]
+            for name, param in regression_model.named_parameters():
+                if "bias" in name:
+                    pass
+                else:
+                    param_ctrl[name] = param.clone().cpu().data.numpy()
+            with open(log_directory + "paramVIS_"+str(p)+".pt","wb") as f:
+                torch.save(param_ctrl,f)
+            p = p + 1
+            
+            param_ctrl.clear()    
         
         #Clear dict for next epoch
         gradient_norms.clear() 
@@ -325,14 +338,14 @@ def main(model,guide,custom_step,rec_step,num_particles,log,gradient_norms,args_
         writer.add_scalar('data/valid_loss', epoch_loss_valid, j)
 
 
-        """
-        #Monitor weights and biases
-
-        #for name, param in regression_model.named_parameters():
-        #    if 'weight' in name:
-        #        writer.add_histogram(name, param.clone().cpu().data.numpy(), j)
         
-        """
+        #Monitor weights and biases
+        for name, param in regression_model.named_parameters():
+            if 'weight' in name:
+                writer.add_histogram(name, param.clone().cpu().data.numpy(), j)
+                writer.add_scalar("norm_"+name, param.norm().clone().cpu().data.numpy(), j)
+        
+        
 
     """
     Save model for evaluation
@@ -340,6 +353,7 @@ def main(model,guide,custom_step,rec_step,num_particles,log,gradient_norms,args_
     PATH = log_directory + "/bnn_student_model.pt"
     #print(pyro.get_param_store().named_parameters())        
     pyro.get_param_store().save(PATH)
+
     
     # Validate - test model
     print("Validate trained model...")
@@ -395,20 +409,31 @@ def main(model,guide,custom_step,rec_step,num_particles,log,gradient_norms,args_
     ap = []
     prob_distr_perPoint = [] #np.zeros((len(x_data),output_nodes))
     for i in xrange(len(x_data)):
-        prob_distr_perPoint.append(np.sum(y_pred_np[:,i,:],axis=0)/float(n_samples)) # get avg of logistic output or avg of argmax? or is it the same??
+        prob_distr_perPoint.append(np.sum(y_pred_np[:,i,:],axis=0)/float(n_samples)) 
     with open(point_pdf_file,'wb') as f:
          torch.save(prob_distr_perPoint,f)
 
-    # Accuracy on test set     
-    # Use majority_class to get accuracy on test data    
+    # Accuracy on valid set     
+    # Use max of softmax output to get accuracy on valid data    
     majority_class = np.argmax(prob_distr_perPoint,axis=1)
     if args_cuda:
        accuracy = len(np.where(majority_class==np.argmax(y_data.cpu().data.numpy(),axis=1))[0])/float(len(majority_class))*100    
     else:
        accuracy = len(np.where(majority_class==np.argmax(y_data.data.numpy(),axis=1))[0])/float(len(majority_class))*100
-    print("Prediction accuracy on validation set is {}".format(accuracy,"%"))
+    print("( Micro ) Prediction accuracy on validation set is {}".format(accuracy,"%"))
 
-    # Use average accuracy to get accuracy on test data 
+    """
+    bins=[0,1,2,3,4]
+    names = ['Slight-Right-Turn','Sharp-Right-Turn','Move-Forward','Slight-Left-Turn']
+    fig1 = plt.figure(figsize=(15,6))
+    ax = fig1.add_subplot(111)
+    _, _, histogram = plt.hist(majority_class, bins=bins, density=False, align='left',rwidth=0.3)
+    ax.set_xticks(bins)
+    ax.set_xticklabels(names,rotation=45, rotation_mode="anchor", ha="right")
+    plt.savefig("./micro.pdf")
+    """
+    
+    # Use average accuracy (max of softmax for each sample prediction -> get accuracy -> avg accuracies for all points)  to get accuracy on valid data 
     acc_samples = np.argmax(y_pred_np,axis=2)
     accuracy = 0.0
     for i in xrange(n_samples):
@@ -417,8 +442,22 @@ def main(model,guide,custom_step,rec_step,num_particles,log,gradient_norms,args_
         else:
             accuracy += len(np.where(acc_samples[i,:]==np.argmax(y_data.data.numpy(),axis=1))[0])/float(acc_samples.shape[1])*100
 
-    print("Average prediction accuracy on validation set is {}".format(accuracy/n_samples,"%"))
-
+    print("( Macro ) Prediction accuracy on validation set is {}".format(accuracy/n_samples,"%"))
+    """
+    fig22 = plt.figure(figsize=(15,6))
+    ax = fig22.add_subplot(111)
+    _, _, histogram = plt.hist(acc_samples[0,:], bins=bins, density=False, align='left',rwidth=0.3)
+    ax.set_xticks(bins)
+    ax.set_xticklabels(names,rotation=45, rotation_mode="anchor", ha="right")
+    plt.savefig("./macro1.pdf")
+    fig3 = plt.figure(figsize=(15,6))
+    ax = fig3.add_subplot(111)
+    _, _, histogram = plt.hist(acc_samples[100,:], bins=bins, density=False, align='left',rwidth=0.3)
+    ax.set_xticks(bins)
+    ax.set_xticklabels(names,rotation=45, rotation_mode="anchor", ha="right")
+    plt.savefig("./macro2.pdf")
+    """
+    
     names = ['Slight-Right-Turn','Sharp-Right-Turn','Move-Forward','Slight-Left-Turn']
     cnf_matrix = confusion_matrix(np.argmax(y_data.cpu().data.numpy(),axis=1), majority_class)  
     fig2 = plt.figure(2, figsize=(15, 7))

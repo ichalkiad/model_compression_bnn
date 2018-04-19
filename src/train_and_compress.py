@@ -19,8 +19,6 @@ from tensorboardX import SummaryWriter
 import os
 import pyro
 from pyro.distributions import Normal
-from pyro.infer import SVI
-from pyro.optim import Adam, SGD
 from sklearn.metrics import confusion_matrix
 import itertools
 from matplotlib import pyplot as plt

@@ -69,7 +69,7 @@ def get_teacher_dataset(sensor_dimensions,CUDA,model,train_loader,valid_loader,o
 
         k2 = np.concatenate(save_data,axis=0)
         with open(out_valid_filename,'wb') as f:
-                torch.save(k,f)
+                torch.save(k2,f)
        
 
         return k,k2
